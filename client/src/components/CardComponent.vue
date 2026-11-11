@@ -1,7 +1,27 @@
 <script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue';
 import type { Card, Rank, Suit } from '@shared/types';
 
-defineProps<{ card?: Card; hidden?: boolean; small?: boolean }>();
+const props = defineProps<{ card?: Card; hidden?: boolean; small?: boolean }>();
+const packLoaded = ref(false);
+const artworkError = ref(false);
+let manifestChecked = false;
+const SUIT_CODE: Record<Suit, string> = { clubs: 'C', diamonds: 'D', hearts: 'H', spades: 'S' };
+const picture = computed(() =>
+  props.hidden || !props.card || props.card.id.startsWith('masked-')
+    ? '/cards/BACK_COMMON.webp'
+    : '/cards/' + (Number.isFinite(Number(props.card.rank)) ? props.card.rank.padStart(2, '0') : props.card.rank) +
+      '_' + SUIT_CODE[props.card.suit] + '.webp'
+);
+watch(picture, () => { artworkError.value = false; });
+onMounted(() => {
+  if (manifestChecked) return;
+  manifestChecked = true;
+  fetch('/cards/manifest.json', { cache: 'force-cache' })
+    .then(r => r.ok ? r.json() : null)
+    .then(meta => { if (meta?.pack === 'pidor-ornamental-36') packLoaded.value = true; })
+    .catch(() => { /* CSS cards remain available until images are deployed */ });
+});
 
 const suitSymbol: Record<Suit, string> = {
   hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠'
@@ -26,7 +46,11 @@ const faceName: Partial<Record<Rank, string>> = {
     }"
     :aria-label="hidden ? 'Рубашка карты' : card ? rankLabel[card.rank] + ' ' + suitSymbol[card.suit] : 'Карта'"
   >
-    <template v-if="!hidden && card">
+    <template v-if="packLoaded && !artworkError">
+      <img :src="picture" class="playing-card__art" :alt="hidden ? 'Рубашка' : (card?.rank || '') + ' ' + (card ? suitSymbol[card.suit] : '')"
+        draggable="false" loading="lazy" decoding="async" @error="artworkError = true" />
+    </template>
+    <template v-else-if="!hidden && card">
       <span class="playing-card__corner">
         <b>{{ rankLabel[card.rank] }}</b>
         <span>{{ suitSymbol[card.suit] }}</span>
@@ -55,7 +79,7 @@ const faceName: Partial<Record<Rank, string>> = {
   flex: none;
   display: block;
   width: var(--width);
-  aspect-ratio: 5 / 7;
+  aspect-ratio: 2 / 3;
   overflow: hidden;
   border-radius: calc(var(--width) * .105);
   border: 1px solid rgba(255,255,255,.75);
@@ -66,6 +90,10 @@ const faceName: Partial<Record<Rank, string>> = {
   -webkit-user-select: none;
 }
 .playing-card--small { --width: clamp(43px, 5.2vw, 56px); }
+.playing-card__art { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; -webkit-user-drag: none; }
+.playing-card--face { background: transparent; }
+.playing-card { transition: filter .18s ease, box-shadow .18s ease; }
+.playing-card--face:hover { filter: brightness(1.055); }
 .playing-card--red { color: #bf343e; }
 .playing-card__corner {
   position: absolute;
