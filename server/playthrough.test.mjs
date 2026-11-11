@@ -43,6 +43,8 @@ function run(seed, count) {
   }
   assert.notEqual(game.state.phase,'DEALING','Dealing finished');
   assert.equal(game.state.deck.length,0,'Deck exhausted');
+  assert.equal(game.state.phase,'PENALTY_REVIEW','Every player gets 15 seconds to call out a cheat');
+  for(const player of game.state.players) game.finishReview(player.id);
   assert.ok(game.state.trumpSuit===null||['hearts','diamonds','clubs'].includes(game.state.trumpSuit),'Nonspade trump');
   while(game.state.phase==='PENALTY_DISTRIBUTION' && stats.steps<9000) {
     stats.steps++;
