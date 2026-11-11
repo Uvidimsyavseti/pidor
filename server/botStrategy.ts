@@ -2,6 +2,7 @@ import type { Card, GameState } from '../shared/types.js';
 import { PidorGame, RANK_VALUE } from './gameLogic.ts';
 
 export type BotMove =
+  | { type: 'accuse'; actorId: string; accusedId: string }
   | { type: 'drawCardFromDeck'; actorId: string }
   | { type: 'takeFromPile'; actorId: string; cardId: string }
   | { type: 'placeActiveCard'; actorId: string; targetId: string }
@@ -34,6 +35,16 @@ export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove
   const state = game.state;
   const isBot = (id: string) => botIds.includes(id);
   if (state.phase === 'LOBBY' || state.phase === 'ENDED') return null;
+
+  // Bots explicitly call out public rule mistakes as fellow players.
+  // They are not awarded by the engine merely because a mistake happened.
+  const challenger = state.players.find(p => isBot(p.id) && !p.hasExited &&
+    game.accusableTargets(p.id).length > 0);
+  if (challenger && Math.random() < 0.55) {
+    const opponentId = game.accusableTargets(challenger.id)[0];
+    return { type: 'accuse', actorId: challenger.id, accusedId: opponentId };
+  }
+  if (state.phase === 'PENALTY_REVIEW') return null;
 
   if (state.phase === 'DEALING') {
     const actor = state.players[state.turnIndex];
@@ -89,6 +100,7 @@ export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove
 
 export function applyBotMove(game: PidorGame, move: BotMove): boolean {
   switch (move.type) {
+    case 'accuse': return game.accuse(move.actorId, move.accusedId)?.correct === true;
     case 'drawCardFromDeck': return game.takeFromDeck(move.actorId);
     case 'takeFromPile': return game.takeFromPile(move.actorId, move.cardId);
     case 'placeActiveCard': return game.placeActiveCard(move.actorId, move.targetId);
