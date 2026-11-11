@@ -32,7 +32,7 @@ export const useGameStore = defineStore('game', {
         this.connecting = false;
         ws.send(JSON.stringify({ type: 'joinRoom', data: {
           playerName: this.playerName,
-          sessionToken: localStorage.getItem(sessionKey(this.roomId)) || '',
+          sessionToken: sessionStorage.getItem(sessionKey(this.roomId)) || '',
           initData: telegramInitData()
         }}));
       };
@@ -46,7 +46,7 @@ export const useGameStore = defineStore('game', {
           this.joined = true;
           this.connecting = false;
           this.error = '';
-          localStorage.setItem(sessionKey(this.roomId), info.sessionToken);
+          sessionStorage.setItem(sessionKey(this.roomId), info.sessionToken);
         } else if (message.type === 'joinError') {
           this.error = String(message.data);
           this.joined = false;
