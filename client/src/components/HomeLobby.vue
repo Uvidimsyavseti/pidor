@@ -327,4 +327,13 @@ function switchMode(next: 'friends'|'bot') {
   .entry__tables,.entry__create,.entry__bots { min-height:220px; }
 }
 @media (prefers-reduced-motion:reduce) { .entry__fan-card { transition:none; } }
+
+.entry__fan-card { transition:transform .35s cubic-bezier(.2,.8,.25,1.2),filter .35s; }
+@media(hover:hover) and (min-width:951px) {
+ .entry__fan:hover .entry__fan-card--0 { transform:translate(-85px,15px) rotate(-28deg); }
+ .entry__fan:hover .entry__fan-card--1 { transform:translate(5px,-13px) rotate(0deg); }
+ .entry__fan:hover .entry__fan-card--2 { transform:translate(98px,18px) rotate(30deg); }
+}
+@media(prefers-reduced-motion:reduce) { .entry__fan-card{transition:none;} }
+
 </style>
