@@ -74,6 +74,7 @@ const others = computed(() => {
 });
 const isMyTurn = computed(() => state.value?.players[state.value.turnIndex]?.id === gameStore.playerId);
 const turnPlayer = computed(() => state.value?.players[state.value.turnIndex]);
+const isHost = computed(() => state.value?.hostId === gameStore.playerId);
 const phaseLabel = computed(() => ({
   LOBBY: 'Лобби', DEALING: 'Набор карт', PENALTY_REVIEW: 'Разбор нарушений',
   PENALTY_DISTRIBUTION: 'Штрафные карты', MAIN_GAME: 'Основная игра',
@@ -185,7 +186,7 @@ function readyReview() {
   gameStore.finishReview();
 }
 function drawCard() {
-  if (canDraw.value) { haptic(); gameStore.drawCardFromDeck(); }
+  if (canDraw.value) { haptic(); playSound('draw'); gameStore.drawCardFromDeck(); }
 }
 function beginDeckSwipe(event: PointerEvent) {
   if (!canDraw.value) return;
@@ -221,25 +222,25 @@ function cancelDeckSwipe() {
 }
 async function invite() {
   haptic();
-  const link = new URL(window.location.href);
-  link.searchParams.set('room', gameStore.joined ? gameStore.roomId : room.value.trim());
-  const bot = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined)?.replace(/^@/, '');
-  if (tg && bot) {
-    tg.openTelegramLink?.('https://t.me/' + bot + '?startapp=room_' + encodeURIComponent(gameStore.roomId));
-    return;
-  }
+  const id = gameStore.joined ? gameStore.roomId : room.value;
+  const botLink = 'https://t.me/cardgame_pidor_bot?startapp=room_' + encodeURIComponent(id);
+  const webLink = new URL(window.location.origin);
+  webLink.searchParams.set('room', id);
+  const link = tg ? botLink : webLink.toString();
   try {
     if (navigator.share && !tg) {
-      await navigator.share({ title: 'PIDOR — приглашение', text: 'Присоединяйся к игре!', url: link.toString() });
+      await navigator.share({ title: 'PIDOR — приглашение за стол', text: 'Садись за наш карточный стол!', url: link });
     } else {
-      await navigator.clipboard.writeText(link.toString());
+      await navigator.clipboard.writeText(link);
       copied.value = true;
-      setTimeout(() => { copied.value = false; }, 2500);
+      setTimeout(() => { copied.value = false; }, 2600);
     }
   } catch {
-    window.prompt('Скопируй ссылку на комнату', link.toString());
+    try { await navigator.clipboard.writeText(link); copied.value = true; setTimeout(() => copied.value = false, 2600); }
+    catch { window.prompt('Скопируй ссылку на стол', link); }
   }
 }
+
 function newGame() {
   const botGame = state.value?.mode === 'bot';
   if (!botGame) { returnToLobby(); return; }
@@ -351,21 +352,40 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
       </div>
 
       <main v-if="state.phase === 'LOBBY'" class="lobby">
-        <div class="lobby__heading"><span class="eyebrow">КОМНАТА ГОТОВА</span><h1>Ожидаем игроков</h1><p>Поделись ссылкой и собери компанию. Начать можно вдвоём.</p></div>
+        <div class="lobby__heading">
+          <span class="eyebrow">✧ &nbsp; ЖИВОЙ КАРТОЧНЫЙ СТОЛ</span>
+          <h1>Всё готово.<br/>Собираем компанию.</h1>
+          <p>Нужны хотя бы два игрока. Когда все сядут, ведущий начнёт партию.</p>
+        </div>
         <div class="lobby__panel">
-          <div class="lobby__top"><span>УЧАСТНИКИ</span><strong>{{ state.players.length }} / 6</strong></div>
+          <div class="lobby__top">
+            <span>МЕСТА ЗА СТОЛОМ</span>
+            <strong>{{ state.players.length }} / 6</strong>
+          </div>
+          <div class="lobby__table-preview" aria-hidden="true">
+            <span>❦</span><strong>PIDOR</strong><small>Карточный клуб</small><span>❦</span>
+          </div>
           <div class="lobby__players">
             <div v-for="p in state.players" :key="p.id" class="lobby-person">
               <div class="lobby-person__avatar">{{ p.name.slice(0, 1).toUpperCase() }}</div>
-              <div class="lobby-person__name">{{ p.name }} <span v-if="p.id === gameStore.playerId">· ВЫ</span></div>
+              <div class="lobby-person__name">{{ p.name }}
+                <span v-if="p.id === gameStore.playerId">· ВЫ</span>
+                <small v-if="p.id === state.hostId" class="lobby-person__host">ВЕДУЩИЙ</small>
+                <small v-if="p.isBot" class="lobby-person__host">БОТ</small>
+              </div>
             </div>
-            <div v-for="n in Math.max(2 - state.players.length, 0)" :key="'empty-' + n" class="lobby-person lobby-person--empty">
+            <div v-for="n in Math.max(6 - state.players.length, 0)" :key="'empty-' + n" class="lobby-person lobby-person--empty">
               <div class="lobby-person__avatar">+</div><span>Свободное место</span>
             </div>
           </div>
-          <button v-if="state.players.length >= 2" class="main-button" type="button" @click="gameStore.startGame()">ПОЕХАЛИ <span>→</span></button>
-          <button v-else class="main-button main-button--secondary" type="button" @click="invite()">ПРИГЛАСИТЬ ДРУГА <span>↗</span></button>
-          <p class="lobby__notice">{{ state.players.length >= 2 ? 'Всё готово! Можно начинать партию.' : 'Нужен ещё хотя бы один игрок для старта.' }}</p>
+          <div class="lobby__invite-bar">
+            <div><small>КОД ПРИГЛАШЕНИЯ</small><strong>{{ gameStore.roomId }}</strong></div>
+            <button type="button" @click="invite">{{ copied ? '✓ СКОПИРОВАНО' : '↗ ПРИГЛАСИТЬ' }}</button>
+          </div>
+          <button v-if="state.players.length >= 2 && isHost" class="main-button" type="button" @click="gameStore.startGame(); playSound('shuffle')">НАЧАТЬ ПАРТИЮ <span>✦</span></button>
+          <button v-else-if="state.players.length >= 2" class="main-button main-button--secondary" type="button" disabled>ЖДЁМ ВЕДУЩЕГО СТОЛА <span>⌛</span></button>
+          <button v-else class="main-button main-button--secondary" type="button" @click="invite">ПРИГЛАСИТЬ ДРУГА <span>↗</span></button>
+          <p class="lobby__notice">{{ state.players.length >= 2 ? isHost ? 'Начни игру, когда все готовы.' : 'Ведущий начнёт партию, когда все соберутся.' : 'Поделись приглашением, второй игрок сможет сесть за стол.' }}</p>
         </div>
       </main>
 
@@ -1090,6 +1110,33 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
 @media(prefers-reduced-motion:reduce) {
  .table-center__slot--deck .deck-button--available { animation:none; }
  .action-button,.main-button,.target-actions__buttons button { transition:none; }
+}
+
+
+.lobby { width:min(760px,100%); }
+.lobby__heading { padding:0 8px; }
+.lobby__heading h1 { line-height:1.05; font-size:clamp(30px,4.7vw,51px); }
+.lobby__table-preview { height:74px; border:2px solid #cbaa72; border-radius:45% / 65%; margin:16px 8px 18px; display:flex; align-items:center; justify-content:center; gap:19px; background:radial-gradient(ellipse,#345c37,#173b28); box-shadow:0 0 0 5px #734525,inset 0 0 9px #0b1f0e; color:#dbbb80; }
+.lobby__table-preview strong { font:700 22px Georgia,serif; letter-spacing:.17em; }
+.lobby__table-preview small { font:11px Georgia,serif; color:#bbd0a8; }
+.lobby__table-preview span { font:25px Georgia,serif; }
+.lobby__players { grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin:15px 0; max-height:250px; overflow-y:auto; }
+.lobby-person { padding:9px; }
+.lobby-person__avatar { width:34px; height:34px; }
+.lobby-person__host { display:block; color:#f1cd88; font-size:8px; letter-spacing:.09em; margin-top:4px; }
+.lobby__invite-bar { margin:16px 0 16px; padding:9px 13px; border:1px solid #90744a; border-radius:11px; display:flex; align-items:center; gap:12px; justify-content:space-between; background:#142c23; }
+.lobby__invite-bar > div { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.lobby__invite-bar small { color:#9bb8a1; font-size:9px; font-weight:900; letter-spacing:.09em; }
+.lobby__invite-bar strong { color:#edcc96; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lobby__invite-bar button { flex:none; min-height:36px; padding:7px 12px; border:1px solid #cba46c; background:#3b5134; color:#fae2b2; border-radius:9px; font-size:10px; font-weight:900; cursor:pointer; }
+@media(max-width:680px) {
+  .lobby { padding:16px 7px; }
+  .lobby__players { grid-template-columns:repeat(2,minmax(0,1fr)); max-height:205px; }
+  .lobby__table-preview { margin:12px 4px 14px; height:61px; gap:10px; }
+  .lobby__table-preview strong { font-size:17px; }
+  .lobby__table-preview span { font-size:18px; }
+  .lobby__invite-bar strong { font-size:11px; }
+  .lobby__invite-bar button { padding:5px 7px; }
 }
 
 </style>
