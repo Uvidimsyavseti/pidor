@@ -72,7 +72,8 @@ const canDraw = computed(() => state.value?.phase === 'DEALING' && isMyTurn.valu
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 const targeting = computed(() => state.value?.phase === 'DEALING' && isMyTurn.value && !!state.value?.activeCard);
-const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null);
+const penaltyTargets = computed(() => others.value.filter(p => (state.value?.pendingPenaltyDebts?.[p.id]?.[gameStore.playerId] || 0) > 0));
+const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null && penaltyTargets.value.length > 0);
 const guidance = computed(() => {
   if (!state.value) return '';
   if (state.value.phase === 'DEALING') {
@@ -81,9 +82,10 @@ const guidance = computed(() => {
     return 'Сейчас ходит ' + (turnPlayer.value?.name || 'другой игрок') + '.';
   }
   if (state.value.phase === 'PENALTY_DISTRIBUTION') {
+    if (!penaltyTargets.value.length) return 'Твои штрафные карты розданы. Ожидаем остальных игроков.';
     return selectedCard.value
-      ? 'Нажмите на игрока, которому хотите передать выбранную карту.'
-      : 'Выберите карту в руке и передайте её игроку, получившему штраф.';
+      ? 'Передайте выбранную карту игроку, которому вы должны штраф.'
+      : 'Выберите карту из руки. Штраф нужно передать отмеченным игрокам.';
   }
   if (state.value.phase === 'MAIN_GAME') {
     if (canTakeStumps.value) return 'Основные карты закончились — пора взять пеньки.';
@@ -117,7 +119,7 @@ function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
 function handleSeatClick(playerId: string) {
   haptic();
   if (targeting.value) gameStore.placeActiveCard(playerId);
-  else if (penaltyTargeting.value && selectedCard.value && playerId !== gameStore.playerId) {
+  else if (penaltyTargeting.value && selectedCard.value && penaltyTargets.value.some(p => p.id === playerId)) {
     gameStore.givePenaltyCard(selectedCard.value.id, playerId);
     selectedCard.value = null;
   }
@@ -256,7 +258,7 @@ function newGame() {
               :player="p" :is-me="false"
               :phase="state.phase"
               :is-turn="turnPlayer?.id === p.id"
-              :targetable="(targeting || penaltyTargeting) && !p.hasExited"
+              :targetable="(targeting || (penaltyTargeting && penaltyTargets.some(target => target.id === p.id))) && !p.hasExited"
               @click="handleSeatClick(p.id)" @card-click="handleCardClick"
             />
           </div>
@@ -314,7 +316,7 @@ function newGame() {
             <div v-else-if="penaltyTargeting" class="target-actions">
               <span>КОМУ ПЕРЕДАТЬ КАРТУ?</span>
               <div class="target-actions__buttons">
-                <button v-for="p in others" :key="p.id" type="button" @click="handleSeatClick(p.id)">{{ p.name }}</button>
+                <button v-for="p in penaltyTargets" :key="p.id" type="button" @click="handleSeatClick(p.id)">{{ p.name }} · {{ state.pendingPenaltyDebts?.[p.id]?.[gameStore.playerId] }}</button>
                 <button type="button" @click="selectedCard = null">ОТМЕНА</button>
               </div>
             </div>
