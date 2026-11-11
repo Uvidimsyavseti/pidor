@@ -36,6 +36,11 @@ function runSolo(seed,botCount) {
     const moves={human:0,bot:0};
     let steps=0;
     for(;steps<14000 && game.state.phase!=='ENDED';steps++) {
+      if (game.state.phase === 'PENALTY_REVIEW') {
+        for (const player of game.state.players) game.finishReview(player.id);
+        phases.add(game.state.phase);
+        continue;
+      }
       const botMove=nextBotMove(game,bots);
       const humanMove=nextBotMove(game,[humanId]);
       const move=botMove || humanMove;
