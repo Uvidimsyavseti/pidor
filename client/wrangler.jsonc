@@ -9,7 +9,8 @@
     "run_worker_first": [
       "/ws",
       "/health",
-      "/telegram/*"
+      "/telegram/*",
+      "/api/*"
     ]
   },
   "durable_objects": {
@@ -17,6 +18,10 @@
       {
         "name": "ROOMS",
         "class_name": "PidorRoom"
+      },
+      {
+        "name": "LOBBY",
+        "class_name": "LobbyDirectory"
       }
     ]
   },
@@ -25,6 +30,12 @@
       "tag": "v1",
       "new_sqlite_classes": [
         "PidorRoom"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "LobbyDirectory"
       ]
     }
   ],
