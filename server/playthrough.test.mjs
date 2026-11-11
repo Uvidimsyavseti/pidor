@@ -35,7 +35,7 @@ function run(seed, count) {
       stats.place++;
     }else{
       const top=actor.stumps.at(-1);
-      const canShift=actor.stumps.length>3 && chooseOther(game,actor,top)!==actor.id;
+      const canShift=game.canMoveTopCard(actor.id) && chooseOther(game,actor,top)!==actor.id;
       if(canShift){assert.equal(game.takeFromPile(actor.id,top.id),true,'shift');stats.shift++;}
       else{assert.equal(game.takeFromDeck(actor.id),true,'draw');stats.draw++;}
     }
