@@ -24,8 +24,11 @@ function visibleState(state: GameState, playerId: string): GameState {
   copy.players = copy.players.map(p => {
     const original = state.players.find(x => x.id === p.id)!;
     if (p.id !== playerId) p.hand = original.hand.map((_, i) => mask('hand-' + i));
+    // Only the top card of the dealing pile is public. All lower cards,
+    // including the human player's own, remain concealed until moved to hand.
     p.stumps = original.stumps.map((card, i) =>
-      state.phase === 'DEALING' && i >= 2 ? card : mask('stumps-' + i));
+      state.phase === 'DEALING' && i === original.stumps.length - 1 && i >= 2
+        ? card : mask('stumps-' + p.id + '-' + i));
     return p;
   });
   if (copy.activeCard && copy.activeCard.fromDeck && copy.activeCard.ownerId !== playerId) {
