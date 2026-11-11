@@ -33,6 +33,7 @@ export interface GameState {
   turnIndex: number; 
   lastDrawnPlayerIdx: number | null; 
   activeCard: { card: Card, ownerId: string, fromDeck: boolean } | null;
+  lastDrawEvent?: { playerId: string; outOfTurn: boolean; forcedSelf: boolean; createdAt: number };
   pendingPenaltyDebts?: Record<string, Record<string, number>>;
   pendingPenaltyTurn?: { giverId: string; receiverId: string } | null; 
 }
