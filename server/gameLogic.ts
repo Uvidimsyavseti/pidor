@@ -37,16 +37,18 @@ export class PidorGame {
   private previousDeckSuit: Suit | null = null;
   private violations: RuleViolation[] = [];
   private lastAccusationAt: Record<string, number> = {};
+  reviewDeadlineAt = 0;
   onPenalty: ((playerId: string, reason: string) => void) | null = null;
 
-  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, penaltyQueue: this.penaltyQueue, previousDeckSuit: this.previousDeckSuit, violations: this.violations, lastAccusationAt: this.lastAccusationAt }; }
-  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; penaltyQueue?: { giverId: string; receiverId: string }[]; previousDeckSuit?: Suit | null; violations?: RuleViolation[]; lastAccusationAt?: Record<string, number> }) {
+  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, penaltyQueue: this.penaltyQueue, previousDeckSuit: this.previousDeckSuit, violations: this.violations, lastAccusationAt: this.lastAccusationAt, reviewDeadlineAt: this.reviewDeadlineAt }; }
+  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; penaltyQueue?: { giverId: string; receiverId: string }[]; previousDeckSuit?: Suit | null; violations?: RuleViolation[]; lastAccusationAt?: Record<string, number>; reviewDeadlineAt?: number }) {
     this.state = saved.state;
     this.penaltyDebts = saved.penaltyDebts || {};
     this.penaltyQueue = saved.penaltyQueue || this.buildPenaltyQueue();
     this.previousDeckSuit = saved.previousDeckSuit || null;
     this.violations = saved.violations || [];
     this.lastAccusationAt = saved.lastAccusationAt || {};
+    this.reviewDeadlineAt = saved.reviewDeadlineAt || 0;
   }
 
   constructor(playerIds: { id: string, name: string }[]) {
@@ -76,6 +78,7 @@ export class PidorGame {
   start() {
     this.violations = [];
     this.lastAccusationAt = {};
+    this.reviewDeadlineAt = 0;
     this.state.deck = createDeck();
     for (const player of this.state.players) {
       player.stumps = [this.state.deck.pop()!, this.state.deck.pop()!, this.state.deck.pop()!];
@@ -137,6 +140,13 @@ export class PidorGame {
     return { correct, accusedId, penalizedId: punished.id, reason };
   }
 
+  expireReview(): boolean {
+    if (this.state.phase !== 'PENALTY_REVIEW' || !this.reviewDeadlineAt || Date.now() < this.reviewDeadlineAt) return false;
+    this.violations = [];
+    this.transitionToPenaltyDistribution();
+    return true;
+  }
+
   finishReview(playerId: string): boolean {
     if (this.state.phase !== 'PENALTY_REVIEW') return false;
     const player = this.state.players.find(p => p.id === playerId);
@@ -151,6 +161,7 @@ export class PidorGame {
 
   private enterReview(): void {
     this.state.phase = 'PENALTY_REVIEW';
+    this.reviewDeadlineAt = Date.now() + VIOLATION_WINDOW_MS;
     for (const player of this.state.players) player.isReady = !!player.isBot;
   }
 
@@ -363,6 +374,7 @@ export class PidorGame {
   }
 
   transitionToMainGame() {
+    this.reviewDeadlineAt = 0;
     this.penaltyQueue = [];
     this.state.phase = 'MAIN_GAME';
     this.state.turnIndex = ((this.state.lastDrawnPlayerIdx ?? -1) + 1) % this.state.players.length;
