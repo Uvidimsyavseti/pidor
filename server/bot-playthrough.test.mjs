@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './deal-suit.test.mjs';
 import './special-draw-rules.test.mjs';
 import './accusation-window.test.mjs';
 import { PidorGame } from './gameLogic.ts';
