@@ -26,6 +26,10 @@ const room = ref(new URLSearchParams(window.location.search).get('room') || 'pid
 const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
+const deckPointerStart = ref<{x: number; y: number} | null>(null);
+const deckDragY = ref(0);
+const deckDragX = ref(0);
+const ignoreClickUntil = ref(0);
 const playMode = ref<'friends' | 'bot'>('friends');
 const botCount = ref(1);
 
@@ -49,6 +53,7 @@ onMounted(() => {
   }
 });
 watch(() => gameStore.gameState?.phase, () => { selectedCard.value = null; });
+watch(() => gameStore.gameState?.pendingPenaltyTurn?.giverId, () => { selectedCard.value = null; });
 
 const state = computed(() => gameStore.gameState);
 const me = computed(() => state.value?.players.find(p => p.id === gameStore.playerId));
@@ -74,7 +79,8 @@ const canDraw = computed(() => state.value?.phase === 'DEALING' && isMyTurn.valu
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 const targeting = computed(() => state.value?.phase === 'DEALING' && isMyTurn.value && !!state.value?.activeCard);
-const penaltyTargets = computed(() => others.value.filter(p => (state.value?.pendingPenaltyDebts?.[p.id]?.[gameStore.playerId] || 0) > 0));
+const myPenaltyTurn = computed(() => state.value?.pendingPenaltyTurn?.giverId === gameStore.playerId);
+const penaltyTargets = computed(() => myPenaltyTurn.value ? others.value.filter(p => p.id === state.value?.pendingPenaltyTurn?.receiverId) : []);
 const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null && penaltyTargets.value.length > 0);
 const guidance = computed(() => {
   if (!state.value) return '';
@@ -84,7 +90,11 @@ const guidance = computed(() => {
     return 'Сейчас ходит ' + (turnPlayer.value?.name || 'другой игрок') + '.';
   }
   if (state.value.phase === 'PENALTY_DISTRIBUTION') {
-    if (!penaltyTargets.value.length) return 'Твои штрафные карты розданы. Ожидаем остальных игроков.';
+    if (!myPenaltyTurn.value) {
+      const giver = state.value.players.find(p => p.id === state.value?.pendingPenaltyTurn?.giverId);
+      const receiver = state.value.players.find(p => p.id === state.value?.pendingPenaltyTurn?.receiverId);
+      return giver ? 'Сейчас ' + giver.name + ' выдаёт похуёвую игроку ' + (receiver?.name || '…') : 'Ожидаем следующую штрафную карту.';
+    }
     return selectedCard.value
       ? 'Передайте выбранную карту игроку, которому вы должны штраф.'
       : 'Выберите карту из руки. Штраф нужно передать отмеченным игрокам.';
@@ -120,7 +130,7 @@ function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
     else if (ownerId === gameStore.playerId && isMyTurn.value) gameStore.takeFromPile(card.id);
   } else if (state.value.phase === 'MAIN_GAME') {
     if (isMyTurn.value) gameStore.playCard(card.id);
-  } else if (state.value.phase === 'PENALTY_DISTRIBUTION' && ownerId === gameStore.playerId) {
+  } else if (state.value.phase === 'PENALTY_DISTRIBUTION' && ownerId === gameStore.playerId && myPenaltyTurn.value) {
     selectedCard.value = selectedCard.value?.id === card.id ? null : card;
   }
 }
@@ -134,6 +144,38 @@ function handleSeatClick(playerId: string) {
 }
 function drawCard() {
   if (canDraw.value) { haptic(); gameStore.drawCardFromDeck(); }
+}
+function beginDeckSwipe(event: PointerEvent) {
+  if (!canDraw.value) return;
+  deckPointerStart.value = { x: event.clientX, y: event.clientY };
+  deckDragX.value = 0;
+  deckDragY.value = 0;
+  (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+}
+function moveDeckSwipe(event: PointerEvent) {
+  if (!deckPointerStart.value) return;
+  deckDragY.value = Math.min(25, Math.max(-90, event.clientY - deckPointerStart.value.y));
+  deckDragX.value = Math.min(45, Math.max(-45, event.clientX - deckPointerStart.value.x));
+}
+function endDeckSwipe(event: PointerEvent) {
+  if (!deckPointerStart.value) return;
+  const distance = Math.hypot(event.clientX - deckPointerStart.value.x, event.clientY - deckPointerStart.value.y);
+  const isSwipe = distance > 42;
+  deckPointerStart.value = null;
+  deckDragX.value = 0;
+  deckDragY.value = 0;
+  if (isSwipe) {
+    ignoreClickUntil.value = Date.now() + 450;
+    drawCard();
+  }
+}
+function clickDeck() {
+  if (Date.now() > ignoreClickUntil.value) drawCard();
+}
+function cancelDeckSwipe() {
+  deckPointerStart.value = null;
+  deckDragX.value = 0;
+  deckDragY.value = 0;
 }
 async function invite() {
   haptic();
@@ -244,6 +286,14 @@ function newGame() {
         </div>
       </Transition>
 
+      <Transition name="penalty-reveal">
+        <div v-if="gameStore.penaltySplash" class="penalty-reveal" role="alert" aria-live="assertive">
+          <div class="penalty-reveal__card" aria-hidden="true">!</div>
+          <strong>ПОХУЕВАЯ!</strong>
+          <span>Тебе прилетела штрафная карта</span>
+        </div>
+      </Transition>
+
       <div v-if="showRules" class="rules-sheet">
         <div class="rules-sheet__header"><strong>Кратко о правилах</strong><button type="button" @click="showRules = false" aria-label="Закрыть правила">✕</button></div>
         <p><b>01 · Набор.</b> Тяните карту по очереди. Карту старше открытой кладите на первую подходящую стопку по кругу. Шестёрка бьёт туза. Последнюю карту колоды оставьте себе.</p>
@@ -299,12 +349,16 @@ function newGame() {
                 <button
                   type="button" class="deck-button" :class="{ 'deck-button--available': canDraw }"
                   :disabled="!canDraw" aria-label="Вытянуть карту из колоды"
-                  @click="drawCard"
+                  :style="deckPointerStart ? { transform: 'translate(' + deckDragX + 'px,' + deckDragY + 'px) rotate(' + (deckDragX / 8) + 'deg)' } : {}"
+                  @pointerdown="beginDeckSwipe" @pointermove="moveDeckSwipe"
+                  @pointerup="endDeckSwipe" @pointercancel="cancelDeckSwipe"
+                  @click="clickDeck"
                 >
                   <CardComponent v-if="state.deck.length" hidden />
                   <div v-else class="empty-slot">0</div>
                 </button>
                 <span class="slot-count">{{ state.deck.length }} карт</span>
+                <span v-if="canDraw" class="deck-swipe-hint">↑ СВАЙПНИ</span>
               </div>
 
               <div class="table-center__slot table-center__slot--trick">
@@ -316,7 +370,7 @@ function newGame() {
                     :card="card" class="trick-card"
                     :style="{ transform: 'translateX(' + (i - (state.currentTrick.length - 1) / 2) * 12 + 'px) rotate(' + (i % 2 ? 6 : -5) + 'deg)' }"
                   />
-                  <div v-if="state.activeCard" class="active-card" :class="{ 'active-card--hidden': state.activeCard.card.id.startsWith('masked-') }">
+                  <div v-if="state.activeCard" :key="state.activeCard.card.id" class="active-card" :class="{ 'active-card--hidden': state.activeCard.card.id.startsWith('masked-'), 'active-card--drawn': state.activeCard.fromDeck }">
                     <CardComponent :card="state.activeCard.card" :hidden="state.activeCard.card.id.startsWith('masked-')" />
                   </div>
                 </div>
@@ -603,4 +657,27 @@ function newGame() {
 .bot-select { width: 100%; background: #102522; border: 1px solid #40554b; color: #f3e6ca; border-radius: 11px; min-height: 50px; padding: 10px 12px; font-size: 16px; }
 .bot-select:focus { outline: 2px solid #e9c27d; }
 .field .bot-note { font-size: 11px; font-weight: 500; letter-spacing: 0; color: #a1baa6; line-height: 1.4; }
+
+.deck-button--available { touch-action: none; transition: transform .12s ease-out; }
+.deck-button--available :deep(.playing-card) { pointer-events: none; }
+.deck-swipe-hint { font-size: 9px; font-weight: 900; color: #f5d693; letter-spacing: .1em; white-space: nowrap; }
+.active-card--drawn { animation: card-from-deck .46s cubic-bezier(.2,.85,.25,1.1) both; }
+@keyframes card-from-deck {
+  from { opacity: .45; transform: translate(-235%,-18px) rotate(-34deg) scale(.8); filter: blur(2px); }
+  to { opacity: 1; transform: translate(-50%,-15px) rotate(-6deg) scale(1); filter: blur(0); }
+}
+.trick-card { animation: trick-entry .32s cubic-bezier(.2,.8,.25,1.05) both; }
+@keyframes trick-entry { from { opacity: 0; scale: .82; } to { opacity: 1; scale: 1; } }
+.penalty-reveal { position: fixed; z-index: 300; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; padding: max(25px,env(safe-area-inset-top)) 18px max(25px,env(safe-area-inset-bottom)); text-align: center; background: radial-gradient(ellipse at center,rgba(157,39,36,.95),rgba(46,9,16,.96)); backdrop-filter: blur(12px); pointer-events: none; }
+.penalty-reveal__card { width: 92px; height: 128px; border-radius: 12px; border: 4px solid #f0c783; background: repeating-linear-gradient(45deg,#be3832 0 11px,#a52a28 11px 22px); color: #fff2d7; font-family: Georgia,serif; font-size: 100px; font-weight: 900; line-height: 120px; transform: rotate(-12deg); box-shadow: 0 15px 50px rgba(0,0,0,.35); animation: penalty-card-pop .48s cubic-bezier(.1,1.4,.4,1) both; }
+.penalty-reveal strong { color: #ffe3a6; font-size: clamp(39px,11vw,102px); line-height: 1.04; letter-spacing: -.055em; font-weight: 1000; text-shadow: 0 5px 14px #320000; animation: penalty-title-pop .5s .1s both; }
+.penalty-reveal span { color: #ffe7cf; font-size: clamp(14px,2.5vw,19px); letter-spacing: .035em; }
+.penalty-reveal-enter-active,.penalty-reveal-leave-active { transition: opacity .22s ease,filter .22s ease; }
+.penalty-reveal-enter-from,.penalty-reveal-leave-to { opacity: 0; filter: blur(8px); }
+@keyframes penalty-card-pop { from { opacity: 0; transform: translateY(-80px) rotate(-38deg) scale(1.7); } to { opacity: 1; transform: translateY(0) rotate(-12deg) scale(1); } }
+@keyframes penalty-title-pop { from { opacity: 0; transform: scale(.58); } to { opacity: 1; transform: scale(1); } }
+@media(max-width:680px) { .active-card--drawn { animation: card-from-deck-mobile .38s cubic-bezier(.2,.85,.25,1.1) both; } }
+@keyframes card-from-deck-mobile { from { opacity: 0; transform: translate(-155%,-4px) rotate(-29deg) scale(.76); } to { opacity: 1; transform: translate(-50%,-8px) rotate(-6deg); } }
+@media(prefers-reduced-motion: reduce) { .active-card--drawn,.trick-card,.penalty-reveal__card,.penalty-reveal strong { animation: none !important; } }
+
 </style>
