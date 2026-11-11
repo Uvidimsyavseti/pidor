@@ -1,10 +1,18 @@
 @import "tailwindcss";
-
-body {
-  @apply bg-slate-900 text-white min-h-screen overflow-hidden;
-  font-family: 'Inter', sans-serif;
+:root {
+  font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-
-.card-container {
-  perspective: 1000px;
-}
+* { box-sizing: border-box; }
+html { min-width: 320px; background: #0b1718; }
+body { margin: 0; min-width: 320px; min-height: 100dvh; background: #0b1718; overflow-x: hidden; }
+button,input { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled):active { transform: scale(.985); }
+a { color: inherit; }
+#app { min-height: 100dvh; }
+@media (hover: none) { button:hover { -webkit-tap-highlight-color: transparent; } }
