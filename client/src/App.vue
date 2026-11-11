@@ -169,7 +169,7 @@ function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
 }
 function handleSeatClick(playerId: string) {
   haptic();
-  if (targeting.value) gameStore.placeActiveCard(playerId);
+  if (targeting.value) { playSound('place'); gameStore.placeActiveCard(playerId); }
   else if (penaltyTargeting.value && selectedCard.value && penaltyTargets.value.some(p => p.id === playerId)) {
     gameStore.givePenaltyCard(selectedCard.value.id, playerId);
     selectedCard.value = null;
@@ -415,7 +415,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
             <span>Карта вытянута из колоды</span>
           </div>
         </Transition>
-        <div class="table-surface">
+        <div class="table-surface" :class="{ 'table-surface--my-turn': isMyTurn && state.phase !== 'ENDED' }">
           <div class="table-surface__ring" aria-hidden="true"></div>
           <div class="table-ornament table-ornament--tl" aria-hidden="true"></div>
           <div class="table-ornament table-ornament--tr" aria-hidden="true"></div>
@@ -1138,5 +1138,12 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
   .lobby__invite-bar strong { font-size:11px; }
   .lobby__invite-bar button { padding:5px 7px; }
 }
+
+
+.table-surface--my-turn .table-center__slot--trick { border-color:#efd397; box-shadow:0 0 0 2px rgba(251,225,156,.09),inset 0 0 24px rgba(252,215,137,.09); }
+.table-surface--my-turn .table-center__label { color:#fff0c3; }
+.target-actions { animation:action-appear .26s cubic-bezier(.2,.75,.15,1.2) both; }
+@keyframes action-appear { from { opacity:0; transform:translateY(12px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+@media(prefers-reduced-motion:reduce){ .target-actions{animation:none;} }
 
 </style>
