@@ -285,7 +285,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
         <div class="brand"><span class="brand__mark">P</span><span>PIDOR<span class="brand__dot">.</span></span></div>
         <div class="header-room">
           <span>КОМНАТА</span>
-          <strong>{{ state.mode === 'bot' ? 'ПРОТИВ БОТОВ' : gameStore.roomId }}</strong>
+          <strong>{{ state.mode === 'bot' ? 'ПРОТИВ БОТОВ' : (gameStore.tableTitle || gameStore.roomId) }}</strong>
         </div>
         <div class="header-actions">
           <button class="subtle-button lobby-return" type="button" @click="returnToLobby"><span class="desktop-label">⌂ Столы</span><span class="mobile-label">⌂</span></button>
@@ -354,7 +354,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
       <main v-if="state.phase === 'LOBBY'" class="lobby">
         <div class="lobby__heading">
           <span class="eyebrow">✧ &nbsp; ЖИВОЙ КАРТОЧНЫЙ СТОЛ</span>
-          <h1>Всё готово.<br/>Собираем компанию.</h1>
+          <h1>{{ gameStore.tableTitle || 'Всё готово.' }}<br/><span>Собираем компанию.</span></h1>
           <p>Нужны хотя бы два игрока. Когда все сядут, ведущий начнёт партию.</p>
         </div>
         <div class="lobby__panel">
@@ -1146,4 +1146,5 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
 @keyframes action-appear { from { opacity:0; transform:translateY(12px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
 @media(prefers-reduced-motion:reduce){ .target-actions{animation:none;} }
 
+.lobby__heading h1 span { color:#edc487; }
 </style>
