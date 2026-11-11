@@ -53,20 +53,13 @@ export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove
   }
 
   if (state.phase === 'PENALTY_DISTRIBUTION') {
-    const debts = game.snapshot().penaltyDebts;
-    for (const giver of state.players) {
-      if (!isBot(giver.id) || giver.hand.length < 2) continue;
-      for (const receiver of state.players) {
-        if (receiver.id === giver.id || !(debts[receiver.id]?.[giver.id] > 0)) continue;
-        const card = [...giver.hand].sort((a, b) =>
-          cardCost(b, state.trumpSuit) - cardCost(a, state.trumpSuit))[0];
-        if (card) return {
-          type: 'givePenaltyCard', actorId: giver.id,
-          receiverId: receiver.id, cardId: card.id
-        };
-      }
-    }
-    return null;
+    const turn = game.currentPenaltyTurn();
+    if (!turn || !isBot(turn.giverId)) return null;
+    const giver = state.players.find(p => p.id === turn.giverId);
+    if (!giver || giver.hand.length < 2) return null;
+    const card = [...giver.hand].sort((a, b) =>
+      cardCost(b, state.trumpSuit) - cardCost(a, state.trumpSuit))[0];
+    return card ? { type: 'givePenaltyCard', actorId: giver.id, cardId: card.id, receiverId: turn.receiverId } : null;
   }
 
   // Players must take their face-down cards (or leave) only between tricks.
