@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { PidorGame } from './gameLogic';
+import { applyBotMove, nextBotMove } from './botStrategy';
 import type { Card, GameState } from '../shared/types';
 
 interface Env {
@@ -58,16 +59,22 @@ async function verifyTelegram(initData: string, botToken?: string): Promise<{ id
 export class PidorRoom extends DurableObject<Env> {
   private game = new PidorGame([]);
   private sessions: Record<string, Session> = {};
+  private botIds: string[] = [];
+  private roomMode: 'friends' | 'bot' = 'friends';
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
-      const [snapshot, sessions] = await Promise.all([
+      const [snapshot, sessions, bots, mode] = await Promise.all([
         ctx.storage.get<GameSnapshot>('game'),
-        ctx.storage.get<Record<string, Session>>('sessions')
+        ctx.storage.get<Record<string, Session>>('sessions'),
+        ctx.storage.get<string[]>('bots'),
+        ctx.storage.get<'friends' | 'bot'>('roomMode')
       ]);
       if (snapshot) this.game.restore(snapshot);
       if (sessions) this.sessions = sessions;
+      if (bots) this.botIds = bots;
+      if (mode) this.roomMode = mode;
     });
     this.game.onPenalty = (playerId, reason) => {
       for (const socket of this.ctx.getWebSockets()) {
@@ -102,6 +109,25 @@ export class PidorRoom extends DurableObject<Env> {
   private async saveGame(): Promise<void> {
     await this.ctx.storage.put('game', this.game.snapshot());
   }
+  private async driveBots(): Promise<void> {
+    if (this.roomMode !== 'bot' || !this.botIds.length) return;
+    let actions = 0;
+    while (actions < 600) {
+      const move = nextBotMove(this.game, this.botIds);
+      if (!move) break;
+      if (!applyBotMove(this.game, move)) {
+        console.warn('Bot could not apply a move', move.type, this.game.state.phase);
+        break;
+      }
+      actions++;
+    }
+    if (actions >= 600) console.warn('Bot action limit reached', this.game.state.phase);
+    if (actions) {
+      await this.saveGame();
+      this.broadcast();
+    }
+  }
+
   private async join(socket: WebSocket, payload: Record<string, unknown>) {
     const tgData = typeof payload.initData === 'string' ? payload.initData : '';
     const telegram = tgData ? await verifyTelegram(tgData, this.env.TELEGRAM_BOT_TOKEN) : null;
@@ -116,7 +142,11 @@ export class PidorRoom extends DurableObject<Env> {
       return emit(socket, 'joinError', 'Сессия принадлежит другому игроку Telegram');
     }
     let token = existingToken;
+    let createdBotRoom = false;
     if (!session) {
+      if (this.roomMode === 'bot' && this.game.state.players.length) {
+        return emit(socket, 'joinError', 'Это одиночная игра. Создай свою комнату с ботом.');
+      }
       if (this.game.state.phase !== 'LOBBY') return emit(socket, 'joinError', 'Партия уже идёт — присоединиться нельзя');
       if (this.game.state.players.length >= 6) return emit(socket, 'joinError', 'Комната заполнена');
       token = crypto.randomUUID();
@@ -126,7 +156,27 @@ export class PidorRoom extends DurableObject<Env> {
         id: session.playerId, name: session.name, hand: [], stumps: [], penalties: 0,
         isReady: false, onDuty: false, hasExited: false
       });
-      await this.ctx.storage.put('sessions', this.sessions);
+      if (this.game.state.players.length === 1 && payload.mode === 'bot') {
+        this.roomMode = 'bot';
+        createdBotRoom = true;
+        const requested = typeof payload.botCount === 'number' ? payload.botCount : 1;
+        const count = Math.max(1, Math.min(3, Math.floor(requested || 1)));
+        for (let n = 0; n < count; n++) {
+          const id = 'bot-' + crypto.randomUUID();
+          this.botIds.push(id);
+          this.game.state.players.push({
+            id, name: count === 1 ? 'Бот Валет' : 'Бот ' + (n + 1),
+            hand: [], stumps: [], penalties: 0, isReady: true, onDuty: false, hasExited: false,
+            isBot: true
+          });
+        }
+      }
+      this.game.state.mode = this.roomMode;
+      await Promise.all([
+        this.ctx.storage.put('sessions', this.sessions),
+        this.ctx.storage.put('bots', this.botIds),
+        this.ctx.storage.put('roomMode', this.roomMode)
+      ]);
       await this.saveGame();
     }
     for (const other of this.ctx.getWebSockets()) {
@@ -136,7 +186,12 @@ export class PidorRoom extends DurableObject<Env> {
     }
     socket.serializeAttachment({ playerId: session.playerId } satisfies Connection);
     emit(socket, 'joined', { playerId: session.playerId, sessionToken: token, name: session.name });
+    if (createdBotRoom) {
+      this.game.start();
+      await this.saveGame();
+    }
     this.broadcast();
+    await this.driveBots();
   }
 
   async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -168,6 +223,7 @@ export class PidorRoom extends DurableObject<Env> {
     } else return;
     await this.saveGame();
     this.broadcast();
+    await this.driveBots();
   }
   async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
     try { socket.close(code, reason); } catch { /* already closed */ }
