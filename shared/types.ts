@@ -7,7 +7,7 @@ export interface Card {
   id: string;
 }
 
-export type GamePhase = 'LOBBY' | 'DEALING' | 'PENALTY_DISTRIBUTION' | 'MAIN_GAME' | 'ENDED';
+export type GamePhase = 'LOBBY' | 'DEALING' | 'PENALTY_REVIEW' | 'PENALTY_DISTRIBUTION' | 'MAIN_GAME' | 'ENDED';
 
 export interface Player {
   id: string;
