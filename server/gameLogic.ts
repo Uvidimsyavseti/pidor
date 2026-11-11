@@ -35,17 +35,19 @@ export class PidorGame {
   private penaltyDebts: Record<string, Record<string, number>> = {};
   private penaltyQueue: { giverId: string; receiverId: string }[] = [];
   private previousDeckSuit: Suit | null = null;
+  private lockedDrawCards: string[] = [];
   private violations: RuleViolation[] = [];
   private lastAccusationAt: Record<string, number> = {};
   reviewDeadlineAt = 0;
   onPenalty: ((playerId: string, reason: string) => void) | null = null;
 
-  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, penaltyQueue: this.penaltyQueue, previousDeckSuit: this.previousDeckSuit, violations: this.violations, lastAccusationAt: this.lastAccusationAt, reviewDeadlineAt: this.reviewDeadlineAt }; }
-  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; penaltyQueue?: { giverId: string; receiverId: string }[]; previousDeckSuit?: Suit | null; violations?: RuleViolation[]; lastAccusationAt?: Record<string, number>; reviewDeadlineAt?: number }) {
+  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, penaltyQueue: this.penaltyQueue, previousDeckSuit: this.previousDeckSuit, lockedDrawCards: this.lockedDrawCards, violations: this.violations, lastAccusationAt: this.lastAccusationAt, reviewDeadlineAt: this.reviewDeadlineAt }; }
+  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; penaltyQueue?: { giverId: string; receiverId: string }[]; previousDeckSuit?: Suit | null; lockedDrawCards?: string[]; violations?: RuleViolation[]; lastAccusationAt?: Record<string, number>; reviewDeadlineAt?: number }) {
     this.state = saved.state;
     this.penaltyDebts = saved.penaltyDebts || {};
     this.penaltyQueue = saved.penaltyQueue || this.buildPenaltyQueue();
     this.previousDeckSuit = saved.previousDeckSuit || null;
+    this.lockedDrawCards = saved.lockedDrawCards || [];
     this.violations = saved.violations || [];
     this.lastAccusationAt = saved.lastAccusationAt || {};
     this.reviewDeadlineAt = saved.reviewDeadlineAt || 0;
@@ -81,6 +83,7 @@ export class PidorGame {
     this.reviewDeadlineAt = 0;
     this.state.deck = createDeck();
     this.state.lastDrawEvent = undefined;
+    this.lockedDrawCards = [];
     for (const player of this.state.players) {
       player.stumps = [this.state.deck.pop()!, this.state.deck.pop()!, this.state.deck.pop()!];
       player.hand = [];
@@ -200,6 +203,7 @@ export class PidorGame {
     // A rule-breaking draw and the spade six are physically kept by the
     // drawer, face up on their own pile. No player may transfer this card.
     if (outOfTurn || isSpadeSix) {
+      this.lockedDrawCards.push(card.id);
       this.state.players[idx].stumps.push(card);
       // An out-of-turn draw does not steal the legitimate player's turn.
       if (!outOfTurn && !this.canBeat(card, originalTop)) {
@@ -223,7 +227,7 @@ export class PidorGame {
     if (p.stumps.length <= 3) return false; // Starting card stays
     
     const top = p.stumps[p.stumps.length - 1];
-    if (top.id !== cardId) return false;
+    if (top.id !== cardId || this.lockedDrawCards.includes(cardId)) return false;
 
     p.stumps.pop();
     this.state.activeCard = { card: top, ownerId: actorId, fromDeck: false };
@@ -355,6 +359,7 @@ export class PidorGame {
   }
 
   private transitionToPenaltyDistribution() {
+    this.lockedDrawCards = [];
     this.state.phase = 'PENALTY_DISTRIBUTION';
     for (const p of this.state.players) p.hand = p.stumps.splice(2);
     this.penaltyDebts = {};
