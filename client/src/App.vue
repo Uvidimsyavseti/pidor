@@ -7,13 +7,19 @@ import type { Card } from '@shared/types';
 
 const gameStore = useGameStore();
 const name = ref('');
-const room = ref('pidor-1');
+const room = ref(new URLSearchParams(window.location.search).get('room') || 'pidor-1');
 const joined = ref(false);
+watch(() => gameStore.error, error => { if (error) joined.value = false; });
 
 const selectedCard = ref<Card | null>(null);
 
 onMounted(() => {
   gameStore.connect();
+  const tg = (window as Window & { Telegram?: { WebApp?: { ready?: () => void; expand?: () => void; initDataUnsafe?: { user?: { first_name?: string; username?: string }; start_param?: string } } } }).Telegram?.WebApp;
+  tg?.ready?.();
+  tg?.expand?.();
+  if (tg?.initDataUnsafe?.user) name.value = tg.initDataUnsafe.user.first_name || tg.initDataUnsafe.user.username || '';
+  if (tg?.initDataUnsafe?.start_param?.startsWith('room_')) room.value = tg.initDataUnsafe.start_param.slice(5);
 });
 
 function join() {
@@ -23,7 +29,7 @@ function join() {
   }
 }
 
-const me = computed(() => gameStore.gameState?.players.find(p => p.id === gameStore.socket?.id));
+const me = computed(() => gameStore.gameState?.players.find(p => p.id === gameStore.playerId));
 const others = computed(() => {
   if (!gameStore.gameState || !me.value) return [];
   const players = [...gameStore.gameState.players];
@@ -35,7 +41,7 @@ const others = computed(() => {
 });
 
 const isMyTurn = computed(() => {
-  return gameStore.gameState?.players[gameStore.gameState.turnIndex]?.id === gameStore.socket?.id;
+  return gameStore.gameState?.players[gameStore.gameState.turnIndex]?.id === gameStore.playerId;
 });
 
 const phaseInfo = computed(() => {
@@ -56,7 +62,7 @@ function handleCardClick({ card, ownerId }: { card: Card, ownerId: string }) {
   if (gameStore.gameState.phase === 'DEALING') {
     if (gameStore.gameState.activeCard) {
       gameStore.placeActiveCard(ownerId);
-    } else if (ownerId === gameStore.socket?.id && isMyTurn.value) {
+    } else if (ownerId === gameStore.playerId && isMyTurn.value) {
       gameStore.takeFromPile(card.id);
     }
     return;
@@ -66,7 +72,7 @@ function handleCardClick({ card, ownerId }: { card: Card, ownerId: string }) {
   if (gameStore.gameState.phase === 'MAIN_GAME') {
     if (isMyTurn.value) gameStore.playCard(card.id);
   } else if (gameStore.gameState.phase === 'PENALTY_DISTRIBUTION') {
-    if (ownerId === gameStore.socket?.id) selectedCard.value = card;
+    if (ownerId === gameStore.playerId) selectedCard.value = card;
     else if (selectedCard.value) {
       gameStore.givePenaltyCard(selectedCard.value.id, ownerId);
       selectedCard.value = null;
@@ -89,6 +95,17 @@ function drawCard() {
   }
 }
 
+function invite() {
+  const url = new URL(window.location.href);
+  url.searchParams.set('room', room.value);
+  const link = url.toString();
+  const tg = (window as Window & { Telegram?: { WebApp?: { openTelegramLink?: (url: string) => void } } }).Telegram?.WebApp;
+  if (tg && import.meta.env.VITE_TELEGRAM_BOT_USERNAME) {
+    const bot = import.meta.env.VITE_TELEGRAM_BOT_USERNAME.replace(/^@/, '');
+    tg.openTelegramLink?.('https://t.me/' + bot + '?startapp=room_' + encodeURIComponent(room.value));
+  } else { navigator.clipboard?.writeText(link).catch(() => window.prompt('Ссылка для приглашения', link)); }
+}
+
 const penaltyPlayerName = computed(() => {
   if (!gameStore.lastPenalty) return '';
   return gameStore.gameState?.players.find(p => p.id === gameStore.lastPenalty?.playerId)?.name || 'Кто-то';
@@ -103,12 +120,14 @@ const penaltyPlayerName = computed(() => {
       <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 flex flex-col gap-4 w-80 shadow-2xl">
         <input v-model="name" placeholder="Имя" class="p-4 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:ring-2 ring-yellow-500" />
         <input v-model="room" placeholder="Комната" class="p-4 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:ring-2 ring-yellow-500" />
+        <div v-if="gameStore.error" class="text-red-400 text-xs">{{ gameStore.error }}</div>
         <button @click="join" class="bg-yellow-500 text-slate-950 py-4 rounded-xl font-black text-xl active:scale-95 transition-all shadow-lg">ИГРАТЬ</button>
       </div>
     </div>
 
     <!-- Game -->
     <div v-else-if="gameStore.gameState" class="flex-1 flex flex-col relative">
+      <div v-if="gameStore.error" class="bg-red-700 rounded-lg px-4 py-2">{{ gameStore.error }}</div>
       <!-- Penalty Notification -->
       <Transition name="slide">
         <div v-if="gameStore.lastPenalty" class="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-red-600 px-6 py-3 rounded-2xl shadow-[0_0_40px_rgba(220,38,38,0.5)] border-2 border-red-400 text-center min-w-[300px]">
@@ -123,6 +142,7 @@ const penaltyPlayerName = computed(() => {
           <span class="text-sm font-bold text-yellow-500 uppercase">{{ phaseInfo }}</span>
         </div>
         <div class="flex gap-2">
+           <button @click="invite" class="bg-slate-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Пригласить</button>
            <button @click="gameStore.takeStumps()" v-if="me?.hand.length === 0 && me?.stumps.length > 0" class="bg-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Пеньки</button>
            <button @click="gameStore.exitGame()" v-if="me?.hand.length === 0 && me?.stumps.length === 0" class="bg-red-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Выход</button>
         </div>
