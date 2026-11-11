@@ -80,6 +80,7 @@ export class PidorGame {
     this.lastAccusationAt = {};
     this.reviewDeadlineAt = 0;
     this.state.deck = createDeck();
+    this.state.lastDrawEvent = undefined;
     for (const player of this.state.players) {
       player.stumps = [this.state.deck.pop()!, this.state.deck.pop()!, this.state.deck.pop()!];
       player.hand = [];
@@ -169,31 +170,47 @@ export class PidorGame {
 
   takeFromDeck(actorId: string): boolean {
     const idx = this.getPlayerIdx(actorId);
-    if (idx === -1 || this.state.phase !== 'DEALING' || this.state.activeCard) return false;
-    
-    if (idx !== this.state.turnIndex) {
-      this.addPenalty(idx, "Тянешь вне очереди");
+    if (idx === -1 || this.state.phase !== 'DEALING' || !this.state.deck.length) return false;
+    const outOfTurn = idx !== this.state.turnIndex;
+    // An unresolved draw cannot be replaced by drawing a second card.
+    if (this.state.activeCard?.ownerId === actorId || (!outOfTurn && this.state.activeCard)) {
+      this.addPenalty(idx, 'Пытается вытянуть вторую карту');
       return false;
     }
-
-    const tIdx = this.findOtherBeatTarget(idx);
-    if (tIdx !== -1) {
-      this.addPenalty(idx, `Не кинул свою карту на ${this.state.players[tIdx].name}`);
+    if (!outOfTurn) {
+      const targetIdx = this.findOtherBeatTarget(idx);
+      if (targetIdx !== -1) {
+        this.addPenalty(idx, 'Не кинул свою карту на ' + this.state.players[targetIdx].name);
+      }
     }
 
-    if (this.state.deck.length === 0) return false;
-    
     const card = this.state.deck.pop()!;
-    if (this.state.deck.length === 0) {
-      // The last card establishes the trump suit. A final spade uses
-      // the previous drawn card's suit; two final spades mean no trump.
-      this.state.trumpSuit = card.suit === 'spades'
-        ? (this.previousDeckSuit === 'spades' ? null : this.previousDeckSuit)
-        : card.suit;
-    }
+    const isSpadeSix = card.rank === '6' && card.suit === 'spades';
+    const originalTop = this.state.players[idx].stumps.at(-1)!;
+
+    // The final spade means NO TRUMP, regardless of the preceding card.
+    if (!this.state.deck.length) this.state.trumpSuit = card.suit === 'spades' ? null : card.suit;
     this.previousDeckSuit = card.suit;
-    this.state.activeCard = { card, ownerId: actorId, fromDeck: true };
     this.state.lastDrawnPlayerIdx = idx;
+    this.state.lastDrawEvent = { playerId: actorId, outOfTurn, forcedSelf: outOfTurn || isSpadeSix, createdAt: Date.now() };
+
+    if (outOfTurn) this.addPenalty(idx, 'Вытянул карту вне очереди');
+    if (isSpadeSix) this.addPenalty(idx, 'Вытянул пиковую шестёрку');
+
+    // A rule-breaking draw and the spade six are physically kept by the
+    // drawer, face up on their own pile. No player may transfer this card.
+    if (outOfTurn || isSpadeSix) {
+      this.state.players[idx].stumps.push(card);
+      // An out-of-turn draw does not steal the legitimate player's turn.
+      if (!outOfTurn && !this.canBeat(card, originalTop)) {
+        this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
+      }
+      // If another draw is pending, it must still be resolved before review.
+      if (!this.state.activeCard) this.checkPhaseEnd();
+      return true;
+    }
+
+    this.state.activeCard = { card, ownerId: actorId, fromDeck: true };
     return true;
   }
 
@@ -401,6 +418,12 @@ export class PidorGame {
 
   isLegalMove(card: Card, target: Card | null): boolean {
     if (!target) return true;
+    // Any six beats an ace of its own suit, including spade/trump aces.
+    if (card.rank === '6' && target.rank === 'A' && card.suit === target.suit) return true;
+    if (!this.state.trumpSuit) {
+      // No-trump game: only cards of the same suit can beat each other.
+      return card.suit === target.suit && this.canBeat(card, target);
+    }
     if (target.rank === 'A' && (target.suit === 'spades' || target.suit === this.state.trumpSuit)) return false;
     if (target.suit === 'spades') return card.suit === 'spades' && this.canBeat(card, target);
     if (target.suit === this.state.trumpSuit) return card.suit === this.state.trumpSuit && this.canBeat(card, target);
