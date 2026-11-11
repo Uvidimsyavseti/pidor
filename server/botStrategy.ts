@@ -1,5 +1,5 @@
 import type { Card, GameState } from '../shared/types.js';
-import { PidorGame, RANK_VALUE } from './gameLogic.js';
+import { PidorGame, RANK_VALUE } from './gameLogic.ts';
 
 export type BotMove =
   | { type: 'drawCardFromDeck'; actorId: string }
