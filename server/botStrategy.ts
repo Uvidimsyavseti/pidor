@@ -38,7 +38,7 @@ export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove
 
   // Bots explicitly call out public rule mistakes as fellow players.
   // They are not awarded by the engine merely because a mistake happened.
-  const challenger = state.players.find(p => isBot(p.id) && !p.hasExited &&
+  const challenger = state.players.find(p => isBot(p.id) && !p.hasExited && game.canAccuseNow(p.id) &&
     game.accusableTargets(p.id).length > 0);
   if (challenger && Math.random() < 0.55) {
     const opponentId = game.accusableTargets(challenger.id)[0];
@@ -50,6 +50,7 @@ export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove
     const actor = state.players[state.turnIndex];
     if (!actor || !isBot(actor.id)) return null;
     if (state.activeCard) {
+      if (state.activeCard.ownerId !== actor.id) return null;
       return {
         type: 'placeActiveCard', actorId: actor.id,
         targetId: state.activeCard.fromDeck && state.deck.length === 0
@@ -100,7 +101,7 @@ export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove
 
 export function applyBotMove(game: PidorGame, move: BotMove): boolean {
   switch (move.type) {
-    case 'accuse': return game.accuse(move.actorId, move.accusedId)?.correct === true;
+    case 'accuse': return game.accuse(move.actorId, move.accusedId) !== null;
     case 'drawCardFromDeck': return game.takeFromDeck(move.actorId);
     case 'takeFromPile': return game.takeFromPile(move.actorId, move.cardId);
     case 'placeActiveCard': return game.placeActiveCard(move.actorId, move.targetId);
