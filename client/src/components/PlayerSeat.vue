@@ -45,6 +45,7 @@ function selectCard(card: Card) {
         <div class="seat__name" :title="player.name">
           {{ player.name }}
           <span v-if="isMe" class="seat__you">ВЫ</span>
+          <span v-if="player.isBot" class="seat__bot">БОТ</span>
         </div>
         <div class="seat__meta">
           <span v-if="player.hasExited" class="seat__exited-label">Вышел из игры</span>
@@ -190,4 +191,5 @@ function selectCard(card: Card) {
   .seat__hand-card--selected { transform: translateY(-6px); }
 }
 @media (prefers-reduced-motion: reduce) { .seat__hand-card { transition: none; } }
+.seat__bot { margin-left: 4px; border: 1px solid #d4b977; border-radius: 5px; padding: 1px 4px; color: #efcc8c; font-size: 9px; letter-spacing: .04em; font-weight: 900; }
 </style>
