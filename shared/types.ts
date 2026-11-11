@@ -30,5 +30,6 @@ export interface GameState {
   discardPile: Card[];
   turnIndex: number; 
   lastDrawnPlayerIdx: number | null; 
-  activeCard: { card: Card, ownerId: string, fromDeck: boolean } | null; 
+  activeCard: { card: Card, ownerId: string, fromDeck: boolean } | null;
+  pendingPenaltyDebts?: Record<string, Record<string, number>>; 
 }
