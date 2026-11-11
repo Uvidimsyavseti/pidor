@@ -287,7 +287,8 @@ export class PidorRoom extends DurableObject<Env> {
     let token = existingToken;
     let createdBotRoom = false;
     // Old abandoned rooms that pre-date automatic cleanup can be reused.
-    if (!session && this.game.state.phase !== 'LOBBY' && this.activePlayerIds(socket).length === 0) {
+    if (!session && this.game.state.phase !== 'LOBBY' && this.activePlayerIds(socket).length === 0 &&
+      (!this.idleDeadline || Date.now() >= this.idleDeadline)) {
       await this.clearVacantRoom();
     }
     if (!session) {
