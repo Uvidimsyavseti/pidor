@@ -27,6 +27,7 @@ const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
 const accuseOpen = ref(false);
+const latestDraw = ref<{ playerId: string; outOfTurn: boolean; forcedSelf: boolean; createdAt: number } | null>(null);
 const deckPointerStart = ref<{x: number; y: number} | null>(null);
 const deckDragY = ref(0);
 const deckDragX = ref(0);
@@ -55,6 +56,12 @@ onMounted(() => {
 });
 watch(() => gameStore.gameState?.phase, () => { selectedCard.value = null; });
 watch(() => gameStore.gameState?.pendingPenaltyTurn?.giverId, () => { selectedCard.value = null; });
+watch(() => gameStore.gameState?.lastDrawEvent?.createdAt, () => {
+  const event = gameStore.gameState?.lastDrawEvent;
+  if (!event || Date.now() - event.createdAt > 4500) return;
+  latestDraw.value = event;
+  setTimeout(() => { if (latestDraw.value === event) latestDraw.value = null; }, 3900);
+});
 
 const state = computed(() => gameStore.gameState);
 const me = computed(() => state.value?.players.find(p => p.id === gameStore.playerId));
@@ -76,7 +83,11 @@ const trumpSymbol = computed(() => {
   return names[state.value?.trumpSuit || ''] || '—';
 });
 const trumpIsRed = computed(() => ['hearts','diamonds'].includes(state.value?.trumpSuit || ''));
-const canDraw = computed(() => state.value?.phase === 'DEALING' && isMyTurn.value && !state.value?.activeCard && !!state.value?.deck.length);
+const canDraw = computed(() => state.value?.phase === 'DEALING'
+  && !!state.value.deck.length
+  && state.value.activeCard?.ownerId !== gameStore.playerId
+  && (!isMyTurn.value || !state.value.activeCard));
+const riskyDraw = computed(() => state.value?.phase === 'DEALING' && !isMyTurn.value);
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 const targeting = computed(() => state.value?.phase === 'DEALING' && isMyTurn.value && !!state.value?.activeCard);
@@ -87,8 +98,8 @@ const guidance = computed(() => {
   if (!state.value) return '';
   if (state.value.phase === 'DEALING') {
     if (targeting.value) return 'Выберите игрока, которому положить карту. Если побить некого — себе.';
-    if (isMyTurn.value) return 'Проверьте верхнюю карту своей стопки или вытяните карту из колоды.';
-    return 'Сейчас ходит ' + (turnPlayer.value?.name || 'другой игрок') + '.';
+    if (isMyTurn.value) return 'Твоя очередь тянуть. Пиковая шестёрка остаётся у тебя, за неё могут обвинить.';
+    return 'Сейчас тянет ' + (turnPlayer.value?.name || 'другой игрок') + '. Можешь рискнуть и вытянуть вне очереди: карта останется у тебя, а другие могут предъявить штраф в течение 15 секунд.';
   }
   if (state.value.phase === 'PENALTY_REVIEW') {
     return me.value?.isReady
@@ -377,6 +388,19 @@ function newGame() {
           </div>
           <button type="button" :disabled="!!me?.isReady" @click="readyReview">{{ me?.isReady ? 'ОЖИДАЕМ ОСТАЛЬНЫХ…' : 'ЗАКОНЧИТЬ РАЗБОР' }}</button>
         </div>
+        <div v-if="state.phase === 'DEALING'" class="drawer-banner" :class="{ 'drawer-banner--mine': isMyTurn }">
+          <div class="drawer-banner__label">КТО ТЯНЕТ СЕЙЧАС</div>
+          <div class="drawer-banner__name"><span class="drawer-banner__avatar">{{ turnPlayer?.name?.charAt(0).toUpperCase() }}</span><strong>{{ turnPlayer?.name }}</strong></div>
+          <div class="drawer-banner__badge">{{ isMyTurn ? 'ТВОЙ ХОД' : 'ИДЁТ ХОД СОПЕРНИКА' }}</div>
+        </div>
+        <Transition name="toast">
+          <div v-if="latestDraw && state.phase === 'DEALING'" class="draw-activity" role="status">
+            <strong>{{ state.players.find(p => p.id === latestDraw?.playerId)?.name }} вытянул карту</strong>
+            <span v-if="latestDraw.outOfTurn">ВНЕ ОЧЕРЕДИ · карта остаётся у игрока</span>
+            <span v-else-if="latestDraw.forcedSelf">ПИКОВАЯ 6 · карта остаётся у игрока</span>
+            <span v-else>Ход по кругу</span>
+          </div>
+        </Transition>
         <div class="table-surface">
           <div class="table-surface__ring" aria-hidden="true"></div>
           <div class="opponents">
@@ -396,8 +420,9 @@ function newGame() {
               <div class="table-center__slot">
                 <span class="slot-heading">КОЛОДА</span>
                 <button
-                  type="button" class="deck-button" :class="{ 'deck-button--available': canDraw }"
-                  :disabled="!canDraw" aria-label="Вытянуть карту из колоды"
+                  type="button" class="deck-button" :class="{ 'deck-button--available': canDraw, 'deck-button--risky': canDraw && riskyDraw }"
+                  :disabled="!canDraw" :aria-label="riskyDraw ? 'Рискнуть: вытянуть вне очереди, оставить карту себе' : 'Вытянуть карту из колоды'"
+                  :title="riskyDraw ? 'Риск: могут обвинить в течение 15 секунд' : 'Тянуть карту'"
                   :style="deckPointerStart ? { transform: 'translate(' + deckDragX + 'px,' + deckDragY + 'px) rotate(' + (deckDragX / 8) + 'deg)' } : {}"
                   @pointerdown="beginDeckSwipe" @pointermove="moveDeckSwipe"
                   @pointerup="endDeckSwipe" @pointercancel="cancelDeckSwipe"
@@ -407,7 +432,7 @@ function newGame() {
                   <div v-else class="empty-slot">0</div>
                 </button>
                 <span class="slot-count">{{ state.deck.length }} карт</span>
-                <span v-if="canDraw" class="deck-swipe-hint">↑ СВАЙПНИ</span>
+                <span v-if="canDraw" class="deck-swipe-hint">{{ riskyDraw ? '⚠ ВНЕ ОЧЕРЕДИ' : '↑ СВАЙПНИ' }}</span>
               </div>
 
               <div class="table-center__slot table-center__slot--trick">
@@ -458,10 +483,10 @@ function newGame() {
           <div class="player-dock__actions">
             <div class="trump">
               <div><small>КОЗЫРЬ</small><strong :class="{ 'trump--red': trumpIsRed }">{{ trumpSymbol }}</strong></div>
-              <span>{{ state.trumpSuit ? 'В игре' : 'По последней карте' }}</span>
+              <span>{{ state.phase === 'DEALING' ? 'По последней карте' : state.trumpSuit ? 'В игре' : 'БЕЗ КОЗЫРЯ' }}</span>
             </div>
             <div class="player-dock__buttons">
-              <button v-if="canDraw" type="button" class="action-button action-button--gold" @click="drawCard">ВЗЯТЬ ИЗ КОЛОДЫ</button>
+              <button v-if="canDraw" type="button" class="action-button action-button--gold" :class="{ 'action-button--risky': riskyDraw }" @click="drawCard">{{ riskyDraw ? 'РИСКНУТЬ: ТЯНУТЬ ВНЕ ОЧЕРЕДИ' : 'ВЗЯТЬ ИЗ КОЛОДЫ' }}</button>
               <button v-if="isMyTurn && state.currentTrick.length && state.phase === 'MAIN_GAME'" type="button" class="action-button action-button--gold" @click="gameStore.takeTrick()">ЗАБРАТЬ НИЖНЮЮ</button>
               <button v-if="canTakeStumps" type="button" class="action-button action-button--gold" @click="gameStore.takeStumps()">БЕРУ ПЕНЬКИ!</button>
               <button v-if="canExitGame" type="button" class="action-button action-button--gold" @click="gameStore.exitGame()">С ПИДОРАМИ НЕ ИГРАЮ!</button>
@@ -765,5 +790,31 @@ function newGame() {
   .callout-button { font-size:9px; padding:4px 7px; }
   .header-room { display:none; }
 }
+
+
+.drawer-banner { width:100%; display:flex; align-items:center; justify-content:center; gap:16px; padding:8px 14px; border:1px solid rgba(204,182,128,.3); background:rgba(29,59,49,.75); border-radius:13px; }
+.drawer-banner--mine { border-color:#f2c77b; box-shadow:inset 0 0 0 1px rgba(243,202,130,.11); }
+.drawer-banner__label { color:#9cc1a9; font-size:10px; font-weight:900; letter-spacing:.14em; }
+.drawer-banner__name { display:flex; align-items:center; gap:8px; min-width:0; }
+.drawer-banner__name strong { color:#f5d99f; font-size:16px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.drawer-banner__avatar { width:25px; height:25px; border-radius:50%; background:#496c53; color:#ffe5af; font-weight:900; font-size:12px; display:grid; place-items:center; flex:none; }
+.drawer-banner__badge { padding:5px 10px; border-radius:30px; background:#2a4d3c; color:#d3e3c5; font-size:9px; letter-spacing:.06em; font-weight:900; white-space:nowrap; }
+.drawer-banner--mine .drawer-banner__badge { background:#edca8c; color:#203728; }
+.deck-button--risky { filter:drop-shadow(0 0 10px rgba(227,103,98,.45)); }
+.deck-button--risky:focus-visible { outline-color:#f8a3a3; }
+.action-button--risky { border-color:#e88c7f; background:#793c35; color:#ffe0ce; font-size:10px; }
+.draw-activity { position:absolute; z-index:20; top:122px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:3px; min-width:190px; max-width:90%; padding:11px 15px; text-align:center; color:#f3e7d0; background:rgba(23,47,40,.98); border:1px solid #d3b37d; border-radius:12px; box-shadow:0 15px 40px rgba(0,0,0,.27); pointer-events:none; }
+.draw-activity strong { font-size:12px; }
+.draw-activity span { font-size:10px; color:#efd39b; }
+@media(max-width:700px) {
+ .drawer-banner { gap:8px; padding:6px 9px; justify-content:space-between; }
+ .drawer-banner__label { font-size:8px; letter-spacing:.05em; }
+ .drawer-banner__name strong { font-size:12px; max-width:92px; }
+ .drawer-banner__avatar { width:22px; height:22px; }
+ .drawer-banner__badge { font-size:8px; padding:4px 7px; }
+ .action-button--risky { max-width:230px; font-size:9px; }
+ .draw-activity { top:112px; }
+}
+@media(max-width:370px){ .drawer-banner__label{max-width:69px;} .drawer-banner__badge{font-size:7px;} }
 
 </style>
