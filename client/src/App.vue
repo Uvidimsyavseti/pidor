@@ -1147,4 +1147,23 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
 @media(prefers-reduced-motion:reduce){ .target-actions{animation:none;} }
 
 .lobby__heading h1 span { color:#edc487; }
+
+/* Tiny phones (320-360px): give the player's stack an independent,
+   scrollable row below the action bar; never cover cards with controls. */
+@media(max-width:360px) and (orientation:portrait) {
+  .site-header--game .lobby-return { display:inline-flex !important; min-width:31px; align-items:center; justify-content:center; padding:4px; }
+  .site-header--game .header-room { display:none; }
+  .site-header--game .sound-icon { min-width:27px; }
+  .site-header--game .header-actions { margin-left:auto; gap:4px; }
+  .site-header--game .outline-button { min-height:30px; padding:5px 7px; font-size:9px; }
+  .site-header--game .callout-button { min-height:30px; padding:4px 6px; }
+  .player-dock { display:block; padding:8px 5px 9px; }
+  .player-dock__actions { display:block; width:100%; min-height:42px; padding:0 3px 11px; margin:0 0 6px; }
+  .player-dock__buttons { display:flex; width:100%; justify-content:stretch; }
+  .player-dock__buttons .action-button { display:block; width:100%; padding:10px 8px; min-height:40px; line-height:1.3; white-space:normal; }
+  .player-dock > .seat--me { margin:3px 0 0; }
+  .game-layout { overflow-y:auto; overscroll-behavior:contain; }
+  .table-surface { min-height:320px; flex:0 0 auto; }
+}
+
 </style>
