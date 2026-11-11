@@ -415,7 +415,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
           <div class="table-center">
             <div class="table-center__label">ИГРОВОЙ СТОЛ</div>
             <div class="table-center__cards">
-              <div class="table-center__slot">
+              <div class="table-center__slot table-center__slot--deck">
                 <span class="slot-heading">КОЛОДА</span>
                 <button
                   type="button" class="deck-button" :class="{ 'deck-button--available': canDraw, 'deck-button--risky': canDraw && riskyDraw }"
@@ -449,13 +449,23 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
                 <span class="slot-count">{{ state.currentTrick.length ? state.currentTrick.length + ' в розыгрыше' : 'Место для карт' }}</span>
               </div>
 
-              <div class="table-center__slot">
+              <div class="table-center__slot table-center__slot--discard">
                 <span class="slot-heading">ОТБОЙ</span>
                 <div class="discard-stack">
                   <CardComponent v-if="state.discardPile.length" hidden />
                   <div v-else class="empty-slot">✕</div>
                 </div>
                 <span class="slot-count">{{ state.discardPile.length }} карт</span>
+              </div>
+
+              <div class="table-center__slot table-center__slot--trump">
+                <span class="slot-heading">КОЗЫРЬ</span>
+                <div class="trump-display" :class="{ 'trump-display--red': trumpIsRed }">
+                  <span class="trump-display__star">✦</span>
+                  <strong>{{ state.trumpSuit ? trumpSymbol : state.phase === 'DEALING' ? '?' : '—' }}</strong>
+                  <span class="trump-display__star">✦</span>
+                </div>
+                <span class="slot-count">{{ state.phase === 'DEALING' ? 'Последняя карта' : state.trumpSuit ? 'Масть в игре' : 'Без козыря' }}</span>
               </div>
             </div>
 
@@ -924,6 +934,162 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
   .desktop-label { display:none; }
   .mobile-label { display:inline; font-size:18px; }
   .site-header--game .subtle-button:not(.lobby-return) { display:none; }
+}
+
+
+/* Wooden table inspired by a rural card-room: warm carved oak, green felt,
+   wheat-gold inlays and hand-painted floral corners. */
+.app-shell { background:
+  radial-gradient(ellipse at 78% -8%,rgba(230,155,78,.17),transparent 43%),
+  radial-gradient(ellipse at -15% 75%,rgba(219,139,69,.1),transparent 45%),
+  repeating-linear-gradient(87deg,#4a2b1c 0 1px,#563521 3px 15px,#3b2418 18px 20px,#512e1e 23px 56px,#382519 64px 70px);
+}
+.site-header { border-bottom-color:rgba(233,192,120,.23); }
+.site-header .brand { color:#f5d5a1; text-shadow:0 3px 18px #140c08; }
+.site-header__label { color:#d8b883; }
+.lobby__heading h1 { font-family:Georgia,serif; color:#f7ddb0; }
+.lobby__panel { background:
+  radial-gradient(ellipse at 15% 0%,rgba(255,227,150,.085),transparent 48%),
+  linear-gradient(145deg,#173d2a,#102d21);
+  border:10px solid #603d23; outline:2px solid #b38750; outline-offset:-13px;
+  box-shadow:0 0 0 2px #a77c4b,0 25px 55px #0007,inset 0 0 45px #091709;
+}
+.lobby-person { border:1px solid #977c4d;background:linear-gradient(145deg,#244630,#183525); }
+.lobby-person__avatar { background:#694b2c;color:#f8d99f; }
+.lobby__top,.lobby__top strong { color:#ecd09d; }
+.lobby__panel .main-button { margin-top:12px; }
+.table-surface {
+  min-height:380px;
+  border:15px solid transparent;
+  border-radius:clamp(24px,5vw,76px);
+  background:
+    radial-gradient(ellipse at 49% 41%,#3a6339 0%,#234b30 50%,#143925 88%,#112b1e 100%) padding-box,
+    repeating-linear-gradient(92deg,#784725 0,#9b6233 13px,#633918 24px,#a36a3e 34px,#603817 46px,#8a532c 62px) border-box;
+  box-shadow:
+    0 0 0 2px #b98949,
+    0 0 0 5px #492a15,
+    0 11px 0 #28180d,
+    0 24px 38px #0009,
+    inset 0 0 0 3px #ceac72,
+    inset 0 0 0 10px #351e115e,
+    inset 0 0 55px #040e0866;
+}
+.table-surface::before { content:""; position:absolute; inset:9px; pointer-events:none; border:2px solid #c9a46b; border-radius:clamp(18px,5vw,66px); z-index:0; opacity:.8; }
+.table-surface::after { inset:21px; border-radius:clamp(14px,4vw,58px); background:radial-gradient(ellipse at 32% 3%,#ffdda31b,transparent 60%); pointer-events:none; }
+.table-surface__ring { inset:27px; border:1px solid rgba(241,209,139,.38); border-radius:clamp(14px,4vw,53px); }
+.table-ornament { position:absolute; z-index:1; pointer-events:none; width:165px; height:100px; background:url('/ornament.svg') center/contain no-repeat; opacity:.95; filter:drop-shadow(0 1px 2px #2714077a); }
+.table-ornament--tl { top:-7px; left:4px; }
+.table-ornament--tr { top:-7px; right:4px; transform:scaleX(-1); }
+.table-ornament--bl { bottom:-8px; left:4px; transform:scaleY(-1); }
+.table-ornament--br { bottom:-8px; right:4px; transform:scale(-1); }
+.table-center { min-height:245px; padding:5px 24px 19px; }
+.table-center__label { font:700 11px Georgia,serif; letter-spacing:.24em; color:#f1d7a3; padding:0 28px; position:relative; }
+.table-center__label::before,.table-center__label::after { content:"❧"; position:absolute; top:-6px; left:0; font-size:23px; color:#d8b879; }
+.table-center__label::after { left:auto; right:0; transform:scaleX(-1); }
+.table-center__cards {
+  display:grid;
+  width:min(840px,95%);
+  max-width:840px;
+  grid-template-columns:130px minmax(220px,1fr) 130px;
+  grid-template-rows:1fr 1fr;
+  grid-template-areas:"deck trick trump" "discard trick trump";
+  align-items:center;
+  justify-items:stretch;
+  column-gap:24px;
+  row-gap:16px;
+}
+.table-center__slot { flex:none; min-width:0; width:100%; gap:6px; }
+.table-center__slot--deck { grid-area:deck; }
+.table-center__slot--discard { grid-area:discard; }
+.table-center__slot--trick {
+  grid-area:trick; display:flex; align-items:center; justify-content:space-between;
+  min-height:253px; align-self:stretch; padding:14px 10px;
+  border:2px solid #d0b070; border-radius:41px;
+  background:radial-gradient(ellipse,#42734a20,transparent 70%);
+  box-shadow:0 0 0 5px #14382122,inset 0 0 10px #f4d2930c;
+  position:relative;
+}
+.table-center__slot--trick::before,.table-center__slot--trick::after { content:"❧"; position:absolute; top:3px; left:50%; transform:translateX(-50%); font:26px Georgia,serif;color:#d9ba7d; }
+.table-center__slot--trick::after { top:auto; bottom:2px; transform:translateX(-50%) rotate(180deg); }
+.table-center__slot--trump { grid-area:trump; border:1px solid rgba(235,198,132,.6); border-radius:17px; min-height:170px; justify-content:center; padding:10px 7px; background:linear-gradient(150deg,#172b1bd4,#28371d9e); box-shadow:0 0 0 3px #bca4771a,inset 0 0 0 3px rgba(233,199,123,.16),0 8px 20px #0b180c6b; }
+.trump-display { display:flex; align-items:center; flex-direction:column; gap:0; color:#f1e3b6; }
+.trump-display strong { font:76px Georgia,serif; line-height:1.07; text-shadow:0 3px 10px #060f07; }
+.trump-display--red strong { color:#e6a0a0; }
+.trump-display__star { font:10px Georgia,serif; color:#cfae6f; }
+.table-center__slot--deck .deck-button,.table-center__slot--discard .discard-stack { filter:drop-shadow(0 6px 4px #09150a70); }
+.table-center__slot--deck .slot-heading,.table-center__slot--discard .slot-heading,.table-center__slot--trump .slot-heading { font-size:10px; font-weight:900; color:#f0d7a4; }
+.table-center__slot--deck .deck-button--available { animation:deck-pulse 2.1s ease-in-out infinite; }
+.player-dock { background:linear-gradient(165deg,#402a1b,#2e291c 37%,#213822 88%); border:5px solid #794e2c; outline:1px solid #b58b58; box-shadow:0 15px 25px #0007,inset 0 0 0 1px #dbb97b5a; border-radius:23px; padding:13px 16px; position:relative; }
+.player-dock::before { content:"❧";position:absolute; top:-11px;left:50%;transform:translateX(-50%);font:24px Georgia,serif;color:#d7b372; }
+.action-button,.main-button,.target-actions__buttons button { transition:filter .15s ease,transform .13s ease,box-shadow .15s ease; }
+.action-button:active,.main-button:active,.target-actions__buttons button:active { transform:translateY(2px);box-shadow:inset 0 2px 7px #0005; }
+.deck-button--available:focus-visible,.seat__card-button:focus-visible { outline:3px solid #fff3b0;outline-offset:4px; }
+@media(min-width:960px) {
+ .opponents { padding-top:19px; min-height:111px; }
+ .table-center__slot--trick .trick-stack { min-height:135px; }
+ .table-surface { flex:1; }
+ .game-layout { gap:12px; }
+ .player-dock { width:min(1240px,100%); }
+}
+@media(max-width:850px) {
+ .table-ornament { width:110px; height:65px; opacity:.65; }
+ .table-center__cards { column-gap:9px; grid-template-columns:100px minmax(150px,1fr) 100px; width:min(100%,570px); }
+ .table-center__slot--trick { min-height:210px; }
+}
+@media(max-width:680px) and (orientation:portrait) {
+ .table-surface {
+  border-width:7px;
+  border-radius:27px;
+  min-height:340px;
+  background:
+    radial-gradient(ellipse at 52% 34%,#315f3a 0%,#20472e 65%,#163721 100%) padding-box,
+    repeating-linear-gradient(96deg,#8b5930,#734421 18px,#a56c38 31px,#58391d 44px) border-box;
+  box-shadow:0 0 0 1px #b98d53,0 4px 0 #3d2919,0 13px 20px #0009,inset 0 0 0 3px #d3ae72;
+ }
+ .table-surface::before { inset:5px; border-radius:19px; border-width:1px; }
+ .table-surface__ring { inset:12px; border-radius:14px; }
+ .table-ornament { width:65px; height:50px; opacity:.6; }
+ .table-ornament--tl { left:-7px; top:-10px; }
+ .table-ornament--tr { right:-7px; top:-10px; }
+ .table-ornament--bl,.table-ornament--br { display:none; }
+ .opponents { justify-content:flex-start; padding:12px 4px 2px; min-height:92px; }
+ .table-center { padding:6px 4px 13px; min-height:210px; gap:7px; }
+ .table-center__label { font-size:9px; padding:0 18px; }
+ .table-center__label::before,.table-center__label::after { font-size:17px; top:-3px; }
+ .table-center__cards { grid-template-columns:66px minmax(0,1fr) 67px; column-gap:5px; row-gap:9px; width:min(100%,370px); grid-template-rows:87px 87px; }
+ .table-center__slot { gap:3px; }
+ .table-center__slot--trick { min-height:166px; padding:7px 1px; border-radius:25px; border-width:1px; }
+ .table-center__slot--trick::before,.table-center__slot--trick::after { font-size:15px; }
+ .trick-stack { min-height:100px; }
+ .table-center__slot--trump { min-height:116px; padding:3px; border-radius:12px; }
+ .trump-display strong { font-size:46px; }
+ .trump-display__star { font-size:8px; }
+ .slot-heading { font-size:8px!important; letter-spacing:.02em; }
+ .slot-count { font-size:8px; }
+ .table-center__slot--deck :deep(.playing-card),.table-center__slot--discard :deep(.playing-card) { --width:55px; }
+ .empty-slot { width:55px; }
+ .table-center__slot--trick .empty-slot { width:58px; }
+ .player-dock { border-width:3px; border-radius:13px; padding:7px 5px; }
+ .player-dock::before { display:none; }
+ .player-dock .trump { display:none; }
+ .player-dock__buttons { justify-content:center; }
+ .player-dock__buttons .action-button { min-height:37px; }
+ .drawer-banner { border-radius:8px; }
+ .game-layout { gap:6px; }
+}
+@media(max-width:360px) and (orientation:portrait) {
+ .table-center__cards { grid-template-columns:58px minmax(0,1fr) 60px; }
+ .table-center__slot--deck :deep(.playing-card),.table-center__slot--discard :deep(.playing-card) { --width:49px; }
+ .trump-display strong { font-size:41px; }
+ .table-center__slot--trick .trick-stack { min-height:92px; }
+}
+@media(max-height:600px) and (orientation:landscape) {
+ .game-layout { overflow-y:auto; }
+ .table-surface { flex:0 0 auto; min-height:330px; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .table-center__slot--deck .deck-button--available { animation:none; }
+ .action-button,.main-button,.target-actions__buttons button { transition:none; }
 }
 
 </style>
