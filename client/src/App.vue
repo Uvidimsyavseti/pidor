@@ -26,6 +26,8 @@ const room = ref(new URLSearchParams(window.location.search).get('room') || 'pid
 const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
+const playMode = ref<'friends' | 'bot'>('friends');
+const botCount = ref(1);
 
 onMounted(() => {
   tg?.ready?.();
@@ -102,7 +104,13 @@ function haptic() { tg?.HapticFeedback?.impactOccurred?.('light'); }
 function join() {
   haptic();
   if (!name.value.trim()) { gameStore.error = 'Введите имя игрока'; return; }
-  gameStore.joinRoom(name.value.trim(), room.value.trim());
+  if (playMode.value === 'bot') {
+    const soloRoom = 'solo-' + crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+    room.value = soloRoom;
+    gameStore.joinRoom(name.value.trim(), soloRoom, 'bot', botCount.value);
+  } else {
+    gameStore.joinRoom(name.value.trim(), room.value.trim(), 'friends');
+  }
 }
 function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
   if (!state.value) return;
@@ -149,8 +157,9 @@ async function invite() {
   }
 }
 function newGame() {
-  room.value = 'pidor-' + Math.random().toString(36).slice(2, 8);
-  gameStore.joinRoom(gameStore.playerName || name.value, room.value);
+  const botGame = state.value?.mode === 'bot';
+  room.value = (botGame ? 'solo-' : 'pidor-') + crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+  gameStore.joinRoom(gameStore.playerName || name.value, room.value, botGame ? 'bot' : 'friends', botGame ? Math.max(1, state.value?.players.filter(p => p.isBot).length || 1) : 1);
 }
 </script>
 
@@ -177,13 +186,31 @@ function newGame() {
             <h2>Заходи за стол</h2>
             <p>Представься и выбери комнату. Друзья смогут присоединиться по той же ссылке.</p>
           </div>
+          <div class="mode-picker" role="group" aria-label="Выбор режима игры">
+            <button type="button" class="mode-picker__button" :class="{ 'mode-picker__button--active': playMode === 'friends' }" :aria-pressed="playMode === 'friends'" @click="playMode = 'friends'">
+              <span class="mode-picker__icon">♠</span><span>С друзьями</span>
+              <small>Онлайн-комната</small>
+            </button>
+            <button type="button" class="mode-picker__button" :class="{ 'mode-picker__button--active': playMode === 'bot' }" :aria-pressed="playMode === 'bot'" @click="playMode = 'bot'">
+              <span class="mode-picker__icon">♟</span><span>С ботом</span>
+              <small>Играй один</small>
+            </button>
+          </div>
           <label class="field"><span>ВАШЕ ИМЯ</span><input v-model="name" maxlength="32" autocomplete="nickname" placeholder="Как тебя зовут?" /></label>
-          <label class="field"><span>НАЗВАНИЕ КОМНАТЫ</span><input v-model="room" maxlength="48" autocomplete="off" spellcheck="false" placeholder="pidor-1" /></label>
+          <label v-if="playMode === 'friends'" class="field"><span>НАЗВАНИЕ КОМНАТЫ</span><input v-model="room" maxlength="48" autocomplete="off" spellcheck="false" placeholder="pidor-1" /></label>
+          <label v-else class="field"><span>КОЛИЧЕСТВО БОТОВ</span>
+            <select v-model.number="botCount" class="bot-select">
+              <option :value="1">1 бот — один на один</option>
+              <option :value="2">2 бота — втроём</option>
+              <option :value="3">3 бота — вчетвером</option>
+            </select>
+            <span class="bot-note">Компьютер будет ходить автоматически. Без ожидания других игроков.</span>
+          </label>
           <div v-if="gameStore.error" class="message message--error" role="alert">{{ gameStore.error }}</div>
           <button type="submit" class="main-button" :disabled="gameStore.connecting">
-            {{ gameStore.connecting ? 'ПОДКЛЮЧАЕМСЯ…' : 'ИГРАТЬ' }} <span aria-hidden="true">↗</span>
+            {{ gameStore.connecting ? 'ПОДКЛЮЧАЕМСЯ…' : playMode === 'bot' ? 'ИГРАТЬ С БОТОМ' : 'ИГРАТЬ' }} <span aria-hidden="true">↗</span>
           </button>
-          <div class="join-panel__bottom"><span class="status-light"></span> Работает без установки · 2–6 игроков</div>
+          <div class="join-panel__bottom"><span class="status-light"></span> {{ playMode === 'bot' ? 'Бот играет по правилам · Без регистрации' : 'Работает без установки · 2–6 игроков' }}</div>
         </form>
       </main>
       <footer class="landing-footer">PIDOR · ИГРАЙ ПО ПРАВИЛАМ, ЕСЛИ СМОЖЕШЬ</footer>
@@ -194,7 +221,7 @@ function newGame() {
         <div class="brand"><span class="brand__mark">P</span><span>PIDOR<span class="brand__dot">.</span></span></div>
         <div class="header-room">
           <span>КОМНАТА</span>
-          <strong>{{ gameStore.roomId }}</strong>
+          <strong>{{ state.mode === 'bot' ? 'ПРОТИВ БОТОВ' : gameStore.roomId }}</strong>
         </div>
         <div class="header-actions">
           <div class="connection" :class="{ 'connection--off': !gameStore.connected }">
@@ -202,7 +229,8 @@ function newGame() {
             <span>{{ gameStore.connected ? 'В СЕТИ' : 'НЕТ СВЯЗИ' }}</span>
           </div>
           <button class="subtle-button" type="button" @click="showRules = !showRules">{{ showRules ? 'Закрыть' : 'Правила' }}</button>
-          <button class="outline-button" type="button" @click="invite">{{ copied ? 'Скопировано ✓' : 'Пригласить ↗' }}</button>
+          <button v-if="state.mode === 'bot'" class="outline-button" type="button" @click="newGame">Новая партия ↻</button>
+          <button v-else class="outline-button" type="button" @click="invite">{{ copied ? 'Скопировано ✓' : 'Пригласить ↗' }}</button>
         </div>
       </header>
 
@@ -350,7 +378,7 @@ function newGame() {
             <div class="game-ended__icon">♠</div>
             <h2>Вахта принята.</h2>
             <p><b>{{ loser?.name || 'Игрок' }}</b> остаётся на вахте. Ещё одну?</p>
-            <button class="main-button" type="button" @click="newGame">НОВАЯ КОМНАТА <span>↗</span></button>
+            <button class="main-button" type="button" @click="newGame">{{ state.mode === 'bot' ? 'РЕВАНШ С БОТОМ' : 'НОВАЯ КОМНАТА' }} <span>↗</span></button>
           </div>
         </div>
       </main>
@@ -564,4 +592,15 @@ function newGame() {
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.mode-picker { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.mode-picker__button { min-height: 89px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 10px; background: rgba(11,29,27,.7); border: 1px solid rgba(171,192,167,.24); border-radius: 12px; color: #f2e8d5; cursor: pointer; touch-action: manipulation; }
+.mode-picker__button--active { border-color: #dfb870; background: rgba(82,70,41,.38); box-shadow: inset 0 0 0 1px rgba(240,196,112,.2); }
+.mode-picker__button span:not(.mode-picker__icon) { font-weight: 900; font-size: 12px; }
+.mode-picker__button small { font-size: 10px; color: #93b5a4; }
+.mode-picker__button--active small { color: #e2c993; }
+.mode-picker__icon { font-family: Georgia,serif; font-size: 23px; color: #eac580; line-height: 1; }
+.bot-select { width: 100%; background: #102522; border: 1px solid #40554b; color: #f3e6ca; border-radius: 11px; min-height: 50px; padding: 10px 12px; font-size: 16px; }
+.bot-select:focus { outline: 2px solid #e9c27d; }
+.field .bot-note { font-size: 11px; font-weight: 500; letter-spacing: 0; color: #a1baa6; line-height: 1.4; }
 </style>
