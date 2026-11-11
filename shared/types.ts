@@ -24,6 +24,7 @@ export interface Player {
 export interface GameState {
   phase: GamePhase;
   mode?: 'friends' | 'bot';
+  hostId?: string;
   players: Player[];
   deck: Card[];
   trumpSuit: Suit | null;
