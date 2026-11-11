@@ -103,7 +103,7 @@ function selectCard(card: Card) {
             {{ phase === 'DEALING' ? 'Карты появятся после набора' : 'В руке пока нет карт' }}
           </div>
           <button
-            v-for="(card, i) in player.hand"
+            v-for="card in player.hand"
             :key="card.id"
             type="button"
             class="seat__card-button seat__hand-card"
