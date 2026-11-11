@@ -133,9 +133,16 @@ export class PidorRoom extends DurableObject<Env> {
   }
 
   private async driveBots(): Promise<void> {
-    if (this.roomMode !== 'bot') return;
-    // Human sees each opponent action in sequence, not a burst of hundreds.
-    // Each alarm performs only one move and then schedules the next turn.
+    // The last 15 seconds are reserved for player accusations.
+    // Everyone can finish review early, otherwise the server ends it on time.
+    if (this.game.state.phase === 'PENALTY_REVIEW' && this.game.reviewDeadlineAt) {
+      await this.ctx.storage.setAlarm(this.game.reviewDeadlineAt);
+      return;
+    }
+    if (this.roomMode !== 'bot') {
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
     if (nextBotMove(this.game, this.botIds)) {
       await this.ctx.storage.setAlarm(Date.now() + 850);
     } else {
@@ -144,22 +151,29 @@ export class PidorRoom extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
+    if (this.game.expireReview()) {
+      await this.saveGame();
+      this.broadcast();
+      await this.driveBots();
+      return;
+    }
     if (this.roomMode !== 'bot') return;
     const move = nextBotMove(this.game, this.botIds);
-    if (!move) return;
+    if (!move) {
+      await this.driveBots();
+      return;
+    }
     const verdict = move.type === 'accuse' ? this.game.accuse(move.actorId, move.accusedId) : null;
     const applied = move.type === 'accuse' ? verdict !== null : applyBotMove(this.game, move);
     if (applied) {
       if (verdict) this.broadcastVerdict(move.actorId, verdict);
-      if (move.type === 'givePenaltyCard') {
-        this.announcePenaltyCard(move.receiverId, move.actorId);
-      }
+      if (move.type === 'givePenaltyCard') this.announcePenaltyCard(move.receiverId, move.actorId);
       await this.saveGame();
       this.broadcast();
-      await this.driveBots();
     } else {
       console.warn('Bot move rejected', move.type, this.game.state.phase);
     }
+    await this.driveBots();
   }
 
   private async join(socket: WebSocket, payload: Record<string, unknown>) {
