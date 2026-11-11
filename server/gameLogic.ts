@@ -297,7 +297,7 @@ export class PidorGame {
 
   private isLegalMove(card: Card, target: Card | null): boolean {
     if (!target) return true;
-    if (target.suit === 'spades' && target.rank === 'A') return false;
+    if (target.rank === 'A' && (target.suit === 'spades' || target.suit === this.state.trumpSuit)) return false;
     if (target.suit === 'spades') return card.suit === 'spades' && this.canBeat(card, target);
     if (target.suit === this.state.trumpSuit) return card.suit === this.state.trumpSuit && this.canBeat(card, target);
     if (card.suit === this.state.trumpSuit) return true;
