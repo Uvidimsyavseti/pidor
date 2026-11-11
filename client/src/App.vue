@@ -327,7 +327,7 @@ function newGame() {
           <div class="player-dock__actions">
             <div class="trump">
               <div><small>КОЗЫРЬ</small><strong :class="{ 'trump--red': trumpIsRed }">{{ trumpSymbol }}</strong></div>
-              <span>{{ state.phase === 'DEALING' ? 'Определён' : 'В игре' }}</span>
+              <span>{{ state.trumpSuit ? 'В игре' : 'По последней карте' }}</span>
             </div>
             <div class="player-dock__buttons">
               <button v-if="canDraw" type="button" class="action-button action-button--gold" @click="drawCard">ВЗЯТЬ ИЗ КОЛОДЫ</button>
