@@ -38,6 +38,7 @@ try {
   const game = new PidorGame([{id:'alice',name:'Alice'}, {id:'bob',name:'Bob'}]);
   game.start();
   assert.equal(game.state.turnIndex, 0);
+  findAndMoveToDeckTop(game, 'K', 'clubs');
   const before = game.state.deck.length;
   const nextTop = game.state.deck[before - 1];
   assert.equal(game.takeFromDeck('bob'), true, 'Off-turn draw is allowed');
@@ -95,6 +96,7 @@ try {
   // The same placement succeeds if nobody notices for fifteen seconds.
   const unseen = new PidorGame([{id:'alice',name:'Alice'},{id:'bob',name:'Bob'}]);
   unseen.start();
+  findAndMoveToDeckTop(unseen,'Q','diamonds');
   assert.equal(unseen.takeFromDeck('bob'),true);
   const stolen = unseen.state.activeCard.card;
   assert.equal(unseen.placeActiveCard('bob','bob'),true);
@@ -131,7 +133,8 @@ try {
   finalSpade.state.trumpSuit = 'hearts';
   assert.equal(finalSpade.takeFromDeck('alice'),true);
   assert.equal(finalSpade.state.trumpSuit,null,'Any last spade means no trump');
-  assert.equal(finalSpade.placeActiveCard('alice','alice'),true);
+  assert.equal(finalSpade.state.activeCard,null,'Last card is forced to the drawer');
+  assert.equal(finalSpade.state.players[0].stumps.at(-1)?.id,'K_of_spades');
 
   const c=(rank,suit)=>({id:rank+'_of_'+suit,rank,suit});
   finalSpade.state.trumpSuit = null;
