@@ -26,6 +26,7 @@ const room = ref(new URLSearchParams(window.location.search).get('room') || 'pid
 const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
+const accuseOpen = ref(false);
 const deckPointerStart = ref<{x: number; y: number} | null>(null);
 const deckDragY = ref(0);
 const deckDragX = ref(0);
@@ -66,7 +67,7 @@ const others = computed(() => {
 const isMyTurn = computed(() => state.value?.players[state.value.turnIndex]?.id === gameStore.playerId);
 const turnPlayer = computed(() => state.value?.players[state.value.turnIndex]);
 const phaseLabel = computed(() => ({
-  LOBBY: 'Лобби', DEALING: 'Набор карт',
+  LOBBY: 'Лобби', DEALING: 'Набор карт', PENALTY_REVIEW: 'Разбор нарушений',
   PENALTY_DISTRIBUTION: 'Штрафные карты', MAIN_GAME: 'Основная игра',
   ENDED: 'Конец партии'
 })[state.value?.phase || 'LOBBY']);
@@ -88,6 +89,11 @@ const guidance = computed(() => {
     if (targeting.value) return 'Выберите игрока, которому положить карту. Если побить некого — себе.';
     if (isMyTurn.value) return 'Проверьте верхнюю карту своей стопки или вытяните карту из колоды.';
     return 'Сейчас ходит ' + (turnPlayer.value?.name || 'другой игрок') + '.';
+  }
+  if (state.value.phase === 'PENALTY_REVIEW') {
+    return me.value?.isReady
+      ? 'Ты закончил разбор. Ждём решения остальных игроков.'
+      : 'Вспомните нарушения. Назови нарушителя кнопкой «ПОХУЁВАЯ!» или закончи разбор.';
   }
   if (state.value.phase === 'PENALTY_DISTRIBUTION') {
     if (!myPenaltyTurn.value) {
@@ -141,6 +147,16 @@ function handleSeatClick(playerId: string) {
     gameStore.givePenaltyCard(selectedCard.value.id, playerId);
     selectedCard.value = null;
   }
+}
+function callOut(playerId: string) {
+  if (playerId === gameStore.playerId) return;
+  haptic();
+  gameStore.accusePlayer(playerId);
+  accuseOpen.value = false;
+}
+function readyReview() {
+  haptic();
+  gameStore.finishReview();
 }
 function drawCard() {
   if (canDraw.value) { haptic(); gameStore.drawCardFromDeck(); }
@@ -270,6 +286,7 @@ function newGame() {
             <span class="status-light"></span>
             <span>{{ gameStore.connected ? 'В СЕТИ' : 'НЕТ СВЯЗИ' }}</span>
           </div>
+          <button v-if="['DEALING', 'PENALTY_REVIEW', 'MAIN_GAME'].includes(state.phase)" type="button" class="callout-button" @click="accuseOpen = true">ПОХУЁВАЯ!</button>
           <button class="subtle-button" type="button" @click="showRules = !showRules">{{ showRules ? 'Закрыть' : 'Правила' }}</button>
           <button v-if="state.mode === 'bot'" class="outline-button" type="button" @click="newGame">Новая партия ↻</button>
           <button v-else class="outline-button" type="button" @click="invite">{{ copied ? 'Скопировано ✓' : 'Пригласить ↗' }}</button>
@@ -293,6 +310,30 @@ function newGame() {
           <span>Тебе прилетела штрафная карта</span>
         </div>
       </Transition>
+
+      <Transition name="toast">
+        <div v-if="gameStore.verdictToast" class="verdict-toast" role="status">
+          <strong>{{ gameStore.verdictToast.correct ? 'ОБВИНЕНИЕ ПОДТВЕРЖДЕНО' : 'ЛОЖНОЕ ОБВИНЕНИЕ!' }}</strong>
+          <span>ПОХУЁВАЯ: {{ state.players.find(p => p.id === gameStore.verdictToast?.penalizedId)?.name }}</span>
+          <small>{{ gameStore.verdictToast.reason }}</small>
+        </div>
+      </Transition>
+
+      <div v-if="accuseOpen" class="accusation-backdrop" @click.self="accuseOpen = false">
+        <div class="accusation-sheet" role="dialog" aria-modal="true" aria-labelledby="accuse-title">
+          <div class="accusation-sheet__header">
+            <strong id="accuse-title">ПОХУЁВАЯ!</strong>
+            <button type="button" aria-label="Закрыть" @click="accuseOpen = false">✕</button>
+          </div>
+          <p>Кто нарушил правила? Назови игрока. Если нарушение было — похуёвая ему. Если ошибся — получишь её сам.</p>
+          <div class="accusation-sheet__players">
+            <button v-for="p in others.filter(p => !p.hasExited)" :key="p.id" type="button" @click="callOut(p.id)">
+              <span>{{ p.name.charAt(0).toUpperCase() }}</span>{{ p.name }} <small v-if="p.isBot">БОТ</small>
+            </button>
+          </div>
+          <button type="button" class="accusation-sheet__cancel" @click="accuseOpen = false">Отмена</button>
+        </div>
+      </div>
 
       <div v-if="showRules" class="rules-sheet">
         <div class="rules-sheet__header"><strong>Кратко о правилах</strong><button type="button" @click="showRules = false" aria-label="Закрыть правила">✕</button></div>
@@ -327,6 +368,14 @@ function newGame() {
           <p>{{ guidance }}</p>
           <span v-if="isMyTurn && state.phase !== 'ENDED'" class="your-turn">ВАШ ХОД</span>
           <span v-else-if="turnPlayer && state.phase !== 'ENDED'" class="whose-turn">Ход: {{ turnPlayer.name }}</span>
+        </div>
+        <div v-if="state.phase === 'PENALTY_REVIEW'" class="review-bar">
+          <div>
+            <strong>Разбор нарушений</strong>
+            <p>Похуёвые начисляются только по обвинению игрока. За ложный вызов наказание получит обвинитель.</p>
+            <small>Готовы: {{ state.players.filter(p => p.isReady || p.isBot).length }} / {{ state.players.length }}</small>
+          </div>
+          <button type="button" :disabled="!!me?.isReady" @click="readyReview">{{ me?.isReady ? 'ОЖИДАЕМ ОСТАЛЬНЫХ…' : 'ЗАКОНЧИТЬ РАЗБОР' }}</button>
         </div>
         <div class="table-surface">
           <div class="table-surface__ring" aria-hidden="true"></div>
@@ -679,5 +728,42 @@ function newGame() {
 @media(max-width:680px) { .active-card--drawn { animation: card-from-deck-mobile .38s cubic-bezier(.2,.85,.25,1.1) both; } }
 @keyframes card-from-deck-mobile { from { opacity: 0; transform: translate(-155%,-4px) rotate(-29deg) scale(.76); } to { opacity: 1; transform: translate(-50%,-8px) rotate(-6deg); } }
 @media(prefers-reduced-motion: reduce) { .active-card--drawn,.trick-card,.penalty-reveal__card,.penalty-reveal strong { animation: none !important; } }
+
+
+.callout-button { border:1px solid #ef9280; background:linear-gradient(125deg,#8e302d,#6b242a); color:#fff0dd; min-height:38px; padding:7px 12px; border-radius:9px; font-size:11px; font-weight:950; white-space:nowrap; box-shadow:0 2px 18px rgba(185,52,48,.12); cursor:pointer; touch-action:manipulation; }
+.callout-button:hover { filter:brightness(1.17); }
+.accusation-backdrop { position:fixed; z-index:250; inset:0; display:grid; place-items:center; padding:18px; background:rgba(3,12,13,.83); backdrop-filter:blur(6px); }
+.accusation-sheet { width:min(420px,100%); border:1px solid #cb835e; border-radius:19px; padding:24px; background:linear-gradient(160deg,#3e2728,#182b28); box-shadow:0 30px 100px rgba(0,0,0,.65); }
+.accusation-sheet__header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.accusation-sheet__header strong { color:#ffe0a9; font-size:clamp(23px,6vw,35px); font-weight:1000; letter-spacing:-.035em; }
+.accusation-sheet__header button { border:0; background:transparent; color:#eed3bb; font-size:20px; cursor:pointer; }
+.accusation-sheet p { color:#e3cbb9; font-size:13px; line-height:1.6; margin:11px 0 19px; }
+.accusation-sheet__players { display:grid; gap:8px; max-height:43dvh; overflow-y:auto; }
+.accusation-sheet__players button { text-align:left; display:flex; align-items:center; gap:11px; padding:9px 12px; min-height:49px; border:1px solid rgba(242,200,155,.25); color:#f5ecd9; border-radius:10px; background:rgba(34,62,50,.75); font-weight:900; cursor:pointer; }
+.accusation-sheet__players button:hover { border-color:#f7c996; background:#395b47; }
+.accusation-sheet__players button>span { display:grid; place-items:center; width:30px; height:30px; border-radius:8px; color:#f0d5a3; background:#345b47; }
+.accusation-sheet__players button small { margin-left:auto; color:#e4bd82; }
+.accusation-sheet__cancel { width:100%; margin-top:17px; border:0; background:transparent; color:#abbdab; font-weight:800; cursor:pointer; padding:9px; }
+.verdict-toast { position:fixed; z-index:230; top:calc(env(safe-area-inset-top) + 118px); left:50%; transform:translateX(-50%); width:max-content; max-width:92vw; display:flex; flex-direction:column; align-items:center; gap:3px; padding:12px 18px; border-radius:12px; color:#ffe5bb; background:#55312d; border:1px solid #e6a373; box-shadow:0 10px 45px #0009; font-size:12px; text-align:center; }
+.verdict-toast strong { font-size:13px; color:#fff0cc; }
+.verdict-toast small { color:#dfc2a6; }
+.review-bar { display:flex; justify-content:space-between; align-items:center; gap:13px; padding:11px 16px; border-radius:12px; border:1px solid rgba(233,185,120,.5); background:rgba(85,59,34,.7); }
+.review-bar strong { font-size:14px; color:#ffe0a5; }
+.review-bar p { margin:4px 0; font-size:11px; color:#f0d6b1; line-height:1.4; }
+.review-bar small { color:#dec79a; font-weight:800; }
+.review-bar button { flex:none; min-height:40px; padding:9px 14px; background:#e6bf7d; color:#202a23; border:0; border-radius:9px; font-size:11px; font-weight:950; cursor:pointer; }
+.review-bar button:disabled { opacity:.48; cursor:default; }
+@media(max-width:700px) {
+  .callout-button { font-size:10px; min-height:33px; padding:5px 8px; }
+  .header-actions { gap:4px; }
+  .review-bar { flex-direction:column; align-items:stretch; padding:9px 12px; }
+  .review-bar button { width:100%; }
+  .accusation-sheet { padding:17px; }
+}
+@media(max-width:380px) {
+  .site-header--game .brand { font-size:17px; }
+  .callout-button { font-size:9px; padding:4px 7px; }
+  .header-room { display:none; }
+}
 
 </style>
