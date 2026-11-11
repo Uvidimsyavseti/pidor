@@ -17,6 +17,7 @@ export const useGameStore = defineStore('game', {
     gameState: null as GameState | null,
     playerId: '', playerName: '', roomId: 'pidor-1',
     roomMode: 'friends' as 'friends' | 'bot', botCount: 1,
+    heartbeat: null as ReturnType<typeof setInterval> | null,
     joined: false, connected: false, connecting: false, reconnect: false, error: '',
     lastPenalty: null as { playerId: string; reason: string } | null,
     penaltySplash: false, splashSequence: 0,
@@ -32,6 +33,10 @@ export const useGameStore = defineStore('game', {
       this.socket = ws;
       ws.onopen = () => {
         this.connected = true;
+        if (this.heartbeat) clearInterval(this.heartbeat);
+        this.heartbeat = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN && this.joined) ws.send(JSON.stringify({ type: 'ping' }));
+        }, 20_000);
         this.connecting = false;
         ws.send(JSON.stringify({ type: 'joinRoom', data: {
           playerName: this.playerName,
@@ -85,6 +90,7 @@ export const useGameStore = defineStore('game', {
       ws.onerror = () => { this.error = 'Сервер недоступен — проверь подключение'; };
       ws.onclose = () => {
         if (this.socket !== ws) return;
+        if (this.heartbeat) { clearInterval(this.heartbeat); this.heartbeat = null; }
         this.connected = false;
         this.connecting = false;
         this.socket = null;
@@ -98,6 +104,7 @@ export const useGameStore = defineStore('game', {
       if (!/^[a-zA-Z0-9_-]{1,48}$/.test(room)) { this.error = 'Комната: 1–48 латинских букв, цифр, - или _'; return; }
       if (!name.trim() || name.length > 32) { this.error = 'Введи имя от 1 до 32 символов'; return; }
       this.reconnect = false;
+      if (this.heartbeat) { clearInterval(this.heartbeat); this.heartbeat = null; }
       this.socket?.close();
       this.socket = null;
       this.gameState = null;
@@ -112,6 +119,18 @@ export const useGameStore = defineStore('game', {
       this.playerName = name.trim();
       this.reconnect = true;
       this.openSocket();
+    },
+    leaveRoom() {
+      this.reconnect = false;
+      this.joined = false;
+      this.connected = false;
+      this.connecting = false;
+      this.error = '';
+      this.gameState = null;
+      this.playerId = '';
+      if (this.heartbeat) { clearInterval(this.heartbeat); this.heartbeat = null; }
+      this.socket?.close(1000, 'Leaving table');
+      this.socket = null;
     },
     send(type: string, data: Record<string, unknown> = {}) {
       if (this.socket?.readyState === WebSocket.OPEN && this.joined) {
