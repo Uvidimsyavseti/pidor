@@ -1,6 +1,7 @@
 interface TelegramEnv {
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
+  TELEGRAM_BOOTSTRAP_KEY?: string;
 }
 
 type TelegramUpdate = {
@@ -64,6 +65,32 @@ async function replyToMessage(env: TelegramEnv, update: TelegramUpdate, origin: 
   });
 }
 
+async function activateBot(env: TelegramEnv, origin: string): Promise<Response> {
+    try {
+      const bot = await callTelegram<{ username?: string }>(env, 'getMe', {});
+      const webhook = await callTelegram(env, 'setWebhook', {
+        url: origin + '/telegram/webhook',
+        secret_token: env.TELEGRAM_WEBHOOK_SECRET!,
+        allowed_updates: ['message'],
+        drop_pending_updates: false
+      });
+      const menu = await callTelegram(env, 'setChatMenuButton', {
+        menu_button: { type: 'web_app', text: '🎮 Играть', web_app: { url: origin } }
+      });
+      await callTelegram(env, 'setMyCommands', {
+        commands: [
+          { command: 'start', description: 'Открыть PIDOR' },
+          { command: 'play', description: 'Выбрать игру с ботом или друзьями' },
+          { command: 'help', description: 'Как играть' }
+        ]
+      });
+      return Response.json({ ok: true, username: bot.result?.username, webhook: webhook.ok, menu: menu.ok });
+    } catch (e) {
+      console.error('Telegram activation error', String(e).replace(/bot\d+:[A-Za-z0-9_-]+/g, 'bot[redacted]'));
+      return Response.json({ error: 'Telegram configuration failed. Check BotFather token and logs.' }, { status: 502 });
+    }
+ }
+
 export async function handleTelegram(request: Request, env: TelegramEnv): Promise<Response> {
   const url = new URL(request.url);
   const configured = Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_WEBHOOK_SECRET);
@@ -78,29 +105,16 @@ export async function handleTelegram(request: Request, env: TelegramEnv): Promis
     if (!/^[a-zA-Z0-9_-]{1,256}$/.test(env.TELEGRAM_WEBHOOK_SECRET!)) {
       return Response.json({ error: 'Webhook secret must be 1-256 chars (letters, numbers, _ or -)' }, { status: 400 });
     }
-    try {
-      const bot = await callTelegram<{ username?: string }>(env, 'getMe', {});
-      const webhook = await callTelegram(env, 'setWebhook', {
-        url: url.origin + '/telegram/webhook',
-        secret_token: env.TELEGRAM_WEBHOOK_SECRET!,
-        allowed_updates: ['message'],
-        drop_pending_updates: false
-      });
-      const menu = await callTelegram(env, 'setChatMenuButton', {
-        menu_button: { type: 'web_app', text: '🎮 Играть', web_app: { url: url.origin } }
-      });
-      await callTelegram(env, 'setMyCommands', {
-        commands: [
-          { command: 'start', description: 'Открыть PIDOR' },
-          { command: 'play', description: 'Выбрать игру с ботом или друзьями' },
-          { command: 'help', description: 'Как играть' }
-        ]
-      });
-      return Response.json({ ok: true, username: bot.result?.username, webhook: webhook.ok, menu: menu.ok });
-    } catch (e) {
-      console.error('Telegram activation error', String(e).replace(/bot\d+:[A-Za-z0-9_-]+/g, 'bot[redacted]'));
-      return Response.json({ error: 'Telegram configuration failed. Check BotFather token and logs.' }, { status: 502 });
+    return activateBot(env, url.origin);
+  }
+  // One-time bootstrap guarded by a separate, short-lived Cloudflare secret.
+  // The bootstrap key is never a bot token or webhook secret.
+  if (url.pathname === '/telegram/bootstrap' && request.method === 'GET') {
+    if (!configured || !env.TELEGRAM_BOOTSTRAP_KEY) return new Response('Not found', { status: 404 });
+    if (!secretEquals(url.searchParams.get('key') || '', env.TELEGRAM_BOOTSTRAP_KEY)) {
+      return new Response('Forbidden', { status: 403 });
     }
+    return activateBot(env, url.origin);
   }
   if (url.pathname === '/telegram/webhook' && request.method === 'POST') {
     if (!configured) return new Response('Not configured', { status: 503 });
