@@ -73,8 +73,8 @@ function selectCard(card: Card) {
         </div>
         <div v-if="player.stumps.length" class="seat__pile">
           <CardComponent
-            :card="phase === 'DEALING' && player.stumps.length >= 3 ? player.stumps[player.stumps.length - 1] : undefined"
-            :hidden="phase !== 'DEALING' || player.stumps.length < 3"
+            :card="['DEALING','PENALTY_REVIEW'].includes(phase) && player.stumps.length >= 3 ? player.stumps[player.stumps.length - 1] : undefined"
+            :hidden="!['DEALING','PENALTY_REVIEW'].includes(phase) || player.stumps.length < 3"
             small
           />
           <span class="seat__pile-count">{{ player.stumps.length }}</span>
@@ -87,11 +87,11 @@ function selectCard(card: Card) {
       <div class="seat__mine">
         <div class="seat__hand-heading">
           <div class="seat__hand-title">
-            <span class="seat__section-label">{{ phase === 'DEALING' ? 'ВАША СТОПКА' : 'ВАШИ КАРТЫ' }}</span>
-            <span class="seat__hand-count">{{ phase === 'DEALING' ? player.stumps.length : player.hand.length }} карт</span>
+            <span class="seat__section-label">{{ ['DEALING','PENALTY_REVIEW'].includes(phase) ? 'ВАША СТОПКА' : 'ВАШИ КАРТЫ' }}</span>
+            <span class="seat__hand-count">{{ ['DEALING','PENALTY_REVIEW'].includes(phase) ? player.stumps.length : player.hand.length }} карт</span>
           </div>
           <button
-            v-if="phase !== 'DEALING'"
+            v-if="!['DEALING','PENALTY_REVIEW'].includes(phase)"
             type="button"
             class="seat__expand-button"
             :aria-expanded="handExpanded"
@@ -100,7 +100,7 @@ function selectCard(card: Card) {
           >{{ handExpanded ? 'Свернуть' : 'Раскрыть карты' }} <span aria-hidden="true">{{ handExpanded ? '⌄' : '⌃' }}</span></button>
         </div>
 
-        <div v-if="phase === 'DEALING'" class="seat__deal-area" data-testid="my-dealing-pile">
+        <div v-if="['DEALING','PENALTY_REVIEW'].includes(phase)" class="seat__deal-area" data-testid="my-dealing-pile">
           <div class="seat__deal-info">
             <strong>Собираем стопку</strong>
             <span>Нижние карты скрыты. Видна только верхняя карта.</span>
