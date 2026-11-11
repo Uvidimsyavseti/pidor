@@ -441,7 +441,7 @@ function newGame() {
 </template>
 
 <style scoped>
-.app-shell { position: relative; isolation: isolate; width: 100%; min-height: 100dvh; min-height: var(--tg-height, 100dvh); overflow: hidden; display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0px) max(14px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(14px, env(safe-area-inset-left, 0px)); background: #0b1718; color: #f1f0e8; }
+.app-shell { position: relative; isolation: isolate; width: 100%; min-height: 100dvh; min-height: var(--tg-height, 100dvh); overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0px) max(14px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(14px, env(safe-area-inset-left, 0px)); background: #0b1718; color: #f1f0e8; }
 .ambient { position: absolute; z-index: -1; pointer-events: none; border-radius: 50%; filter: blur(68px); opacity: .35; }
 .ambient--top { width: 480px; height: 480px; left: -200px; top: -260px; background: #245746; }
 .ambient--bottom { width: 440px; height: 440px; right: -240px; bottom: -260px; background: #584829; }
@@ -545,7 +545,7 @@ function newGame() {
 .target-actions__buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 7px; }
 .target-actions__buttons button { border: 1px solid #c5a46c; background: #315444; color: #f3e5be; padding: 7px 12px; border-radius: 9px; min-height: 35px; cursor: pointer; font-size: 11px; font-weight: 800; }
 .target-actions__buttons button:hover { background: #476f56; }
-.player-dock { flex: 0 0 auto; min-height: 0; width: min(100%, 1050px); align-self: center; }
+.player-dock { flex: 0 0 auto; min-height: 0; width: min(100%, 1400px); align-self: center; }
 .player-dock__actions { min-height: 54px; display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 0 8px 9px; }
 .trump { display: flex; align-items: center; gap: 10px; }
 .trump > div { display: flex; align-items: center; gap: 8px; padding: 5px 13px; background: #1b342d; border: 1px solid #49634c; border-radius: 10px; }
