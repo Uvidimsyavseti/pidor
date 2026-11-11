@@ -101,6 +101,13 @@ export class PidorGame {
       ? true : RANK_VALUE[card.rank] > RANK_VALUE[target.rank];
   }
 
+  canMoveTopCard(playerId: string): boolean {
+    const p = this.state.players.find(p => p.id === playerId);
+    const top = p?.stumps.at(-1);
+    return this.state.phase === 'DEALING' && !!top &&
+      p!.stumps.length > 3 && !this.lockedDrawCards.includes(top.id);
+  }
+
   private getPlayerIdx(id: string) { return this.state.players.findIndex(p => p.id === id); }
 
   /**
