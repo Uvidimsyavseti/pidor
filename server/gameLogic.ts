@@ -29,13 +29,15 @@ function shuffle<T>(array: T[]): T[] {
 export class PidorGame {
   state: GameState;
   private penaltyDebts: Record<string, Record<string, number>> = {};
+  private penaltyQueue: { giverId: string; receiverId: string }[] = [];
   private previousDeckSuit: Suit | null = null;
   onPenalty: ((playerId: string, reason: string) => void) | null = null;
 
-  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, previousDeckSuit: this.previousDeckSuit }; }
-  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; previousDeckSuit?: Suit | null }) {
+  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, penaltyQueue: this.penaltyQueue, previousDeckSuit: this.previousDeckSuit }; }
+  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; penaltyQueue?: { giverId: string; receiverId: string }[]; previousDeckSuit?: Suit | null }) {
     this.state = saved.state;
     this.penaltyDebts = saved.penaltyDebts || {};
+    this.penaltyQueue = saved.penaltyQueue || this.buildPenaltyQueue();
     this.previousDeckSuit = saved.previousDeckSuit || null;
   }
 
@@ -238,6 +240,31 @@ export class PidorGame {
     }
   }
 
+  private buildPenaltyQueue(): { giverId: string; receiverId: string }[] {
+    const queue: { giverId: string; receiverId: string }[] = [];
+    const debts = Object.fromEntries(Object.entries(this.penaltyDebts).map(([receiver, givers]) => [receiver, { ...givers }]));
+    // Give one card per player in seat order, then repeat while debts remain.
+    let pending = true;
+    while (pending) {
+      pending = false;
+      for (const giver of this.state.players) {
+        for (const receiver of this.state.players) {
+          if ((debts[receiver.id]?.[giver.id] || 0) > 0) {
+            queue.push({ giverId: giver.id, receiverId: receiver.id });
+            debts[receiver.id][giver.id]--;
+            pending = true;
+            break;
+          }
+        }
+      }
+    }
+    return queue;
+  }
+
+  currentPenaltyTurn(): { giverId: string; receiverId: string } | null {
+    return this.penaltyQueue[0] || null;
+  }
+
   private transitionToPenaltyDistribution() {
     this.state.phase = 'PENALTY_DISTRIBUTION';
     for (const p of this.state.players) p.hand = p.stumps.splice(2);
@@ -254,16 +281,19 @@ export class PidorGame {
       }
     }
     const total = Object.values(this.penaltyDebts).flatMap(x => Object.values(x)).reduce((a, b) => a + b, 0);
+    this.penaltyQueue = this.buildPenaltyQueue();
     if (total === 0) this.transitionToMainGame();
   }
 
   givePenaltyCard(giverId: string, cardId: string, receiverId: string): boolean {
     const giver = this.state.players.find(p => p.id === giverId);
-    if (!giver || giver.hand.length <= 1 || !this.penaltyDebts[receiverId]?.[giverId]) return false;
+    const current = this.currentPenaltyTurn();
+    if (!giver || giver.hand.length <= 1 || current?.giverId !== giverId || current.receiverId !== receiverId || !this.penaltyDebts[receiverId]?.[giverId]) return false;
     const idx = giver.hand.findIndex(c => c.id === cardId);
     if (idx === -1) return false;
     this.state.players.find(p => p.id === receiverId)!.hand.push(giver.hand.splice(idx, 1)[0]);
     this.penaltyDebts[receiverId][giverId]--;
+    this.penaltyQueue.shift();
     
     let rem = 0;
     for (const r in this.penaltyDebts) for (const g in this.penaltyDebts[r]) rem += this.penaltyDebts[r][g];
@@ -272,6 +302,7 @@ export class PidorGame {
   }
 
   transitionToMainGame() {
+    this.penaltyQueue = [];
     this.state.phase = 'MAIN_GAME';
     this.state.turnIndex = ((this.state.lastDrawnPlayerIdx ?? -1) + 1) % this.state.players.length;
     while (this.state.players[this.state.turnIndex].hasExited) this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
