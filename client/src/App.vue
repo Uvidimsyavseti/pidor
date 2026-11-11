@@ -89,6 +89,18 @@ const riskyDraw = computed(() => state.value?.phase === 'DEALING' && !isMyTurn.v
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 const targeting = computed(() => state.value?.phase === 'DEALING' && state.value?.activeCard?.ownerId === gameStore.playerId);
+const dealtRank: Record<string, number> = { '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, J: 11, Q: 12, K: 13, A: 14 };
+const dealTargets = computed(() => {
+  if (!targeting.value || !state.value?.activeCard) return [];
+  const card = state.value.activeCard.card;
+  const seatOrder = [...others.value, ...(me.value ? [me.value] : [])];
+  return seatOrder.filter(player => {
+    if (player.id === gameStore.playerId) return true;
+    const top = player.stumps.at(-1);
+    return top && top.suit === card.suit &&
+      (card.rank === '6' && top.rank === 'A' || dealtRank[card.rank] > dealtRank[top.rank]);
+  });
+});
 const myPenaltyTurn = computed(() => state.value?.pendingPenaltyTurn?.giverId === gameStore.playerId);
 const penaltyTargets = computed(() => myPenaltyTurn.value ? others.value.filter(p => p.id === state.value?.pendingPenaltyTurn?.receiverId) : []);
 const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null && penaltyTargets.value.length > 0);
@@ -346,7 +358,7 @@ function newGame() {
 
       <div v-if="showRules" class="rules-sheet">
         <div class="rules-sheet__header"><strong>Кратко о правилах</strong><button type="button" @click="showRules = false" aria-label="Закрыть правила">✕</button></div>
-        <p><b>01 · Набор.</b> Тяните карту по очереди. Карту старше открытой кладите на первую подходящую стопку по кругу. Шестёрка бьёт туза. Последнюю карту колоды оставьте себе.</p>
+        <p><b>01 · Набор.</b> Тяните карту по очереди. Карту старше открытой кладите на первую подходящую стопку той же масти по кругу. Шестёрка бьёт туза. Последнюю карту колоды оставьте себе.</p>
         <p><b>02 · Штрафы.</b> За нарушения игроки получают «хуёвые» — дополнительные карты от остальных. Последнюю карту из руки отдавать нельзя.</p>
         <p><b>03 · Игра.</b> Бейте старшую карту той же масти или козырем, но пику — только пикой. Не можете побить — берите нижнюю. Когда закончится рука, берите пеньки; когда закончатся и они — выходите.</p>
         <button class="outline-button" type="button" @click="showRules = false">ПОНЯТНО</button>
@@ -405,7 +417,7 @@ function newGame() {
               :player="p" :is-me="false"
               :phase="state.phase"
               :is-turn="turnPlayer?.id === p.id"
-              :targetable="(targeting || (penaltyTargeting && penaltyTargets.some(target => target.id === p.id))) && !p.hasExited"
+              :targetable="((targeting && dealTargets.some(target => target.id === p.id)) || (penaltyTargeting && penaltyTargets.some(target => target.id === p.id))) && !p.hasExited"
               @click="handleSeatClick(p.id)" @card-click="handleCardClick"
             />
           </div>
@@ -460,8 +472,9 @@ function newGame() {
             <div v-if="targeting" class="target-actions">
               <span>КУДА ПОЛОЖИТЬ КАРТУ?</span>
               <div class="target-actions__buttons">
-                <button v-for="p in state.players" :key="p.id" type="button" @click="handleSeatClick(p.id)">
+                <button v-for="p in dealTargets" :key="p.id" type="button" @click="handleSeatClick(p.id)">
                   {{ p.id === gameStore.playerId ? 'СЕБЕ' : p.name }}
+                  <small v-if="p.id !== gameStore.playerId && p.id === dealTargets.find(x => x.id !== gameStore.playerId)?.id">· ПО КРУГУ</small>
                 </button>
               </div>
             </div>
