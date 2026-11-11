@@ -32,7 +32,7 @@ const deckPointerStart = ref<{x: number; y: number} | null>(null);
 const deckDragY = ref(0);
 const deckDragX = ref(0);
 const ignoreClickUntil = ref(0);
-const playMode = ref<'friends' | 'bot'>('friends');
+const playMode = ref<'friends' | 'bot'>(new URLSearchParams(window.location.search).get('mode') === 'bot' ? 'bot' : 'friends');
 const botCount = ref(1);
 
 onMounted(() => {
