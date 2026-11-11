@@ -19,7 +19,8 @@ export const useGameStore = defineStore('game', {
     roomMode: 'friends' as 'friends' | 'bot', botCount: 1,
     joined: false, connected: false, connecting: false, reconnect: false, error: '',
     lastPenalty: null as { playerId: string; reason: string } | null,
-    penaltySplash: false, splashSequence: 0
+    penaltySplash: false, splashSequence: 0,
+    verdictToast: null as { correct: boolean; accuserId: string; accusedId: string; penalizedId: string; reason: string } | null
   }),
   actions: {
     connect() { /* open on join */ },
@@ -61,7 +62,7 @@ export const useGameStore = defineStore('game', {
           const data = message.data as { playerId: string; reason: string };
           this.lastPenalty = data;
           setTimeout(() => { if (this.lastPenalty === data) this.lastPenalty = null; }, 2500);
-        } else if (message.type === 'penaltyCardReceived') {
+        } else if (message.type === 'penaltyAwarded') {
           this.splashSequence++;
           const sequence = this.splashSequence;
           this.penaltySplash = true;
@@ -69,6 +70,16 @@ export const useGameStore = defineStore('game', {
           setTimeout(() => {
             if (this.splashSequence === sequence) this.penaltySplash = false;
           }, 1900);
+        } else if (message.type === 'accusationVerdict') {
+          const data = message.data as { correct: boolean; accuserId: string; accusedId: string; penalizedId: string; reason: string };
+          this.verdictToast = data;
+          setTimeout(() => { if (this.verdictToast === data) this.verdictToast = null; }, 3000);
+        } else if (message.type === 'actionError') {
+          this.error = String(message.data);
+          setTimeout(() => { if (this.error === message.data) this.error = ''; }, 3200);
+        } else if (message.type === 'penaltyCardReceived') {
+          // Physical card transfers are distinct from awarding a foul.
+          // Do not show the full-screen foul animation for an ordinary transfer.
         }
       };
       ws.onerror = () => { this.error = 'Сервер недоступен — проверь подключение'; };
@@ -92,6 +103,7 @@ export const useGameStore = defineStore('game', {
       this.gameState = null;
       this.lastPenalty = null;
       this.penaltySplash = false;
+      this.verdictToast = null;
       this.joined = false;
       this.playerId = '';
       this.roomId = room;
@@ -107,6 +119,8 @@ export const useGameStore = defineStore('game', {
       }
     },
     startGame() { this.send('startGame'); },
+    accusePlayer(accusedId: string) { this.send('accusePlayer', { accusedId }); },
+    finishReview() { this.send('finishReview'); },
     drawCardFromDeck() { this.send('drawCardFromDeck'); },
     takeFromPile(cardId: string) { this.send('takeFromPile', { cardId }); },
     placeActiveCard(targetPlayerId: string) { this.send('placeActiveCard', { targetPlayerId }); },
