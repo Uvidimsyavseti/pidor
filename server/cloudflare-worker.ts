@@ -120,6 +120,7 @@ export class PidorRoom extends DurableObject<Env> {
       const playerId = (socket.deserializeAttachment() as Connection | null)?.playerId;
       if (playerId) {
         const view = visibleState(this.game.state, playerId);
+        view.hostId = this.currentHostId();
         if (this.game.state.phase === 'PENALTY_DISTRIBUTION') {
           view.pendingPenaltyDebts = this.game.snapshot().penaltyDebts;
           view.pendingPenaltyTurn = this.game.currentPenaltyTurn();
@@ -127,6 +128,24 @@ export class PidorRoom extends DurableObject<Env> {
         emit(socket, 'gameStateUpdate', view);
       }
     }
+  }
+  private currentHostId(): string | undefined {
+    const active = new Set(this.activePlayerIds());
+    return this.game.state.players.find(p => active.has(p.id) && !p.isBot)?.id;
+  }
+  private async forgetLobbySeat(socket: WebSocket): Promise<void> {
+    if (this.game.state.phase !== 'LOBBY') return;
+    const id = (socket.deserializeAttachment() as Connection | null)?.playerId;
+    if (!id || this.activePlayerIds(socket).includes(id)) return;
+    this.game.state.players = this.game.state.players.filter(p => p.id !== id);
+    for (const [token, session] of Object.entries(this.sessions)) {
+      if (session.playerId === id) delete this.sessions[token];
+    }
+    await Promise.all([
+      this.ctx.storage.put('sessions', this.sessions),
+      this.saveGame()
+    ]);
+    this.broadcast();
   }
   private activePlayerIds(exclude?: WebSocket): string[] {
     const ids = new Set<string>();
@@ -351,7 +370,13 @@ export class PidorRoom extends DurableObject<Env> {
     else if (type === 'finishReview') {
       if (!game.finishReview(id)) emit(socket, 'actionError', 'Разбор уже завершён');
     }
-    else if (type === 'startGame' && game.state.phase === 'LOBBY' && game.state.players.length >= 2) game.start();
+    else if (type === 'startGame') {
+      if (game.state.phase !== 'LOBBY' || game.state.players.length < 2) {
+        emit(socket, 'actionError', 'Недостаточно игроков или партия уже началась');
+      } else if (this.currentHostId() !== id) {
+        emit(socket, 'actionError', 'Партию начинает ведущий стола');
+      } else game.start();
+    }
     else if (type === 'drawCardFromDeck') game.takeFromDeck(id);
     else if (type === 'takeFromPile' && typeof data.cardId === 'string') game.takeFromPile(id, data.cardId);
     else if (type === 'placeActiveCard' && typeof data.targetPlayerId === 'string') game.placeActiveCard(id, data.targetPlayerId);
@@ -374,11 +399,13 @@ export class PidorRoom extends DurableObject<Env> {
   }
   async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
     try { socket.close(code, reason); } catch { /* already closed */ }
+    await this.forgetLobbySeat(socket);
     await this.reportRoom();
     await this.markActivity();
   }
   async webSocketError(socket: WebSocket): Promise<void> {
     try { socket.close(1011, 'WebSocket error'); } catch { /* already closed */ }
+    await this.forgetLobbySeat(socket);
     await this.reportRoom();
     await this.markActivity();
   }
