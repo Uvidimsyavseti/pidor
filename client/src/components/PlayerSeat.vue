@@ -12,8 +12,9 @@ const props = defineProps<{
 
 const emit = defineEmits(['cardClick', 'click']);
 
-function handleCardClick(event: Event, card: Card) {
+function handleCardClick(event: Event, card: Card | undefined) {
   event.stopPropagation();
+  if (!card) return;
   emit('cardClick', { card, ownerId: props.player.id });
 }
 </script>
@@ -49,7 +50,7 @@ function handleCardClick(event: Event, card: Card) {
             :card="player.stumps[player.stumps.length - 1]" 
             small 
             @click="handleCardClick($event, player.stumps[player.stumps.length - 1])"
-            :class="{ 'ring-4 ring-yellow-400': isMe && selectedCardId === player.stumps[player.stumps.length-1].id }"
+            :class="{ 'ring-4 ring-yellow-400': isMe && selectedCardId === player.stumps[player.stumps.length-1]?.id }"
           />
           <CardComponent v-else hidden small class="pointer-events-none" />
         </div>
