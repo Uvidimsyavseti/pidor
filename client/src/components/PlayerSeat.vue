@@ -109,7 +109,7 @@ function selectCard(card: Card) {
           <div class="seat__stack" :aria-label="'Стопка из ' + player.stumps.length + ' карт'">
             <div class="seat__stack-layer seat__stack-layer--bottom"><CardComponent hidden /></div>
             <div v-if="player.stumps.length > 1" class="seat__stack-layer seat__stack-layer--middle"><CardComponent hidden /></div>
-            <div class="seat__stack-layer seat__stack-layer--top">
+            <div :key="player.stumps[player.stumps.length - 1]?.id" class="seat__stack-layer seat__stack-layer--top">
               <button
                 v-if="player.stumps.length > 3"
                 type="button"
