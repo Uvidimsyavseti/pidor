@@ -58,7 +58,7 @@ export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove
       };
     }
     const top = actor.stumps.at(-1);
-    if (top && actor.stumps.length > 3 && firstTarget(game, actor.id, top) !== actor.id) {
+    if (top && game.canMoveTopCard(actor.id) && firstTarget(game, actor.id, top) !== actor.id) {
       return { type: 'takeFromPile', actorId: actor.id, cardId: top.id };
     }
     return state.deck.length ? { type: 'drawCardFromDeck', actorId: actor.id } : null;
