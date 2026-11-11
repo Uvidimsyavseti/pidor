@@ -18,10 +18,12 @@ export interface Player {
   isReady: boolean;
   onDuty: boolean; // "На вахте"
   hasExited: boolean; // "С пидорами не играю"
+  isBot?: boolean;
 }
 
 export interface GameState {
   phase: GamePhase;
+  mode?: 'friends' | 'bot';
   players: Player[];
   deck: Card[];
   trumpSuit: Suit | null;
