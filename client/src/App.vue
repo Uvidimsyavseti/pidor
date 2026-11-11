@@ -95,11 +95,9 @@ const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBU
 const guidance = computed(() => {
   if (!state.value) return '';
   if (state.value.phase === 'DEALING') {
-    if (targeting.value) return riskyDraw.value
-      ? 'Ты вытянул вне очереди. Попробуй пристроить карту соседу! Если поймают за 15 секунд, карта вернётся к тебе.'
-      : 'Выберите игрока, которому положить карту. Если побить некого — себе.';
-    if (isMyTurn.value) return 'Твоя очередь тянуть. Пиковая шестёрка остаётся у тебя, за неё могут обвинить.';
-    return 'Сейчас тянет ' + (turnPlayer.value?.name || 'другой игрок') + '. Можешь рискнуть и вытянуть вне очереди: если за 15 секунд никто не поймает, карту разрешено положить другому игроку.';
+    if (targeting.value) return 'Положи карту по масти на подходящую карту игрока по кругу или себе.';
+    if (isMyTurn.value) return 'Твоя очередь тянуть. Положи карту на подходящую масть по кругу.';
+    return 'Сейчас ходит ' + (turnPlayer.value?.name || 'другой игрок') + '. Следи за ходом и картами на столе.';
   }
   if (state.value.phase === 'PENALTY_REVIEW') {
     return me.value?.isReady
@@ -396,9 +394,7 @@ function newGame() {
         <Transition name="toast">
           <div v-if="latestDraw && state.phase === 'DEALING'" class="draw-activity" role="status">
             <strong>{{ state.players.find(p => p.id === latestDraw?.playerId)?.name }} вытянул карту</strong>
-            <span v-if="latestDraw.outOfTurn">ВНЕ ОЧЕРЕДИ · поймают за 15 секунд — карта вернётся</span>
-            <span v-else-if="latestDraw.forcedSelf">ПИКОВАЯ 6 · карта остаётся у игрока</span>
-            <span v-else>Ход по кругу</span>
+            <span>Карта вытянута из колоды</span>
           </div>
         </Transition>
         <div class="table-surface">
@@ -421,8 +417,8 @@ function newGame() {
                 <span class="slot-heading">КОЛОДА</span>
                 <button
                   type="button" class="deck-button" :class="{ 'deck-button--available': canDraw, 'deck-button--risky': canDraw && riskyDraw }"
-                  :disabled="!canDraw" :aria-label="riskyDraw ? 'Рискнуть: вытянуть вне очереди, оставить карту себе' : 'Вытянуть карту из колоды'"
-                  :title="riskyDraw ? 'Риск: могут обвинить в течение 15 секунд' : 'Тянуть карту'"
+                  :disabled="!canDraw" aria-label="Вытянуть карту из колоды"
+                  title="Вытянуть карту"
                   :style="deckPointerStart ? { transform: 'translate(' + deckDragX + 'px,' + deckDragY + 'px) rotate(' + (deckDragX / 8) + 'deg)' } : {}"
                   @pointerdown="beginDeckSwipe" @pointermove="moveDeckSwipe"
                   @pointerup="endDeckSwipe" @pointercancel="cancelDeckSwipe"
@@ -432,7 +428,7 @@ function newGame() {
                   <div v-else class="empty-slot">0</div>
                 </button>
                 <span class="slot-count">{{ state.deck.length }} карт</span>
-                <span v-if="canDraw" class="deck-swipe-hint">{{ riskyDraw ? '⚠ ВНЕ ОЧЕРЕДИ' : '↑ СВАЙПНИ' }}</span>
+                <span v-if="canDraw" class="deck-swipe-hint">↑ СВАЙПНИ</span>
               </div>
 
               <div class="table-center__slot table-center__slot--trick">
@@ -486,7 +482,7 @@ function newGame() {
               <span>{{ state.phase === 'DEALING' ? 'По последней карте' : state.trumpSuit ? 'В игре' : 'БЕЗ КОЗЫРЯ' }}</span>
             </div>
             <div class="player-dock__buttons">
-              <button v-if="canDraw" type="button" class="action-button action-button--gold" :class="{ 'action-button--risky': riskyDraw }" @click="drawCard">{{ riskyDraw ? 'РИСКНУТЬ: ТЯНУТЬ ВНЕ ОЧЕРЕДИ' : 'ВЗЯТЬ ИЗ КОЛОДЫ' }}</button>
+              <button v-if="canDraw" type="button" class="action-button action-button--gold" :class="{ 'action-button--risky': riskyDraw }" @click="drawCard">ВЗЯТЬ ИЗ КОЛОДЫ</button>
               <button v-if="isMyTurn && state.currentTrick.length && state.phase === 'MAIN_GAME'" type="button" class="action-button action-button--gold" @click="gameStore.takeTrick()">ЗАБРАТЬ НИЖНЮЮ</button>
               <button v-if="canTakeStumps" type="button" class="action-button action-button--gold" @click="gameStore.takeStumps()">БЕРУ ПЕНЬКИ!</button>
               <button v-if="canExitGame" type="button" class="action-button action-button--gold" @click="gameStore.exitGame()">С ПИДОРАМИ НЕ ИГРАЮ!</button>
@@ -816,5 +812,102 @@ function newGame() {
  .draw-activity { top:112px; }
 }
 @media(max-width:370px){ .drawer-banner__label{max-width:69px;} .drawer-banner__badge{font-size:7px;} }
+
+
+/* Village tavern board: old planks, weathered brass, coarse green cloth. */
+.app-shell {
+  background:
+    radial-gradient(ellipse 65% 55% at 55% 30%, rgba(165,114,53,.17), transparent 75%),
+    repeating-linear-gradient(0deg, rgba(16,8,4,.34) 0 2px, transparent 2px 107px, rgba(8,4,3,.65) 107px 112px),
+    repeating-linear-gradient(89deg, #362417 0px, #422a18 31px, #322015 77px, #4c321d 103px, #332214 161px);
+}
+.app-shell::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  inset: 0;
+  opacity: .29;
+  background:
+    repeating-linear-gradient(92deg, transparent 0 9px, rgba(13,7,4,.25) 10px, transparent 12px 42px, rgba(228,180,111,.06) 45px 47px, transparent 49px 83px),
+    repeating-linear-gradient(1deg, transparent 0 22px, rgba(240,177,91,.04) 23px 24px, transparent 25px 48px);
+}
+.site-header {
+  border-bottom: 1px solid rgba(235,188,112,.23);
+  background: linear-gradient(180deg,rgba(24,14,10,.30),transparent);
+}
+.brand__mark { background:linear-gradient(140deg,#f5d9a3,#b58145); box-shadow: inset 0 1px 2px #fff8,0 3px 8px #0906057a; }
+.join-panel,.lobby__panel {
+  background:
+    linear-gradient(158deg,rgba(52,37,25,.97),rgba(26,30,23,.98)),
+    repeating-linear-gradient(87deg,transparent 0 18px,rgba(208,165,97,.12) 19px 20px);
+  border: 2px solid rgba(182,133,75,.57);
+  box-shadow: 0 18px 55px rgba(0,0,0,.43), inset 0 0 0 3px rgba(247,200,130,.06);
+}
+.landing__intro em { color: #f5d396; }
+.landing__suits { color:#e4c18b; }
+.field input,.bot-select { background:#261d17; border-color:#7a6041; }
+.field input:focus,.bot-select:focus { border-color:#e7bd78; }
+.game-layout { padding-top: 12px; }
+.game-status {
+  padding:8px 15px;
+  border: 1px solid rgba(223,178,113,.28);
+  border-radius: 13px;
+  background:linear-gradient(105deg,rgba(31,23,17,.81),rgba(38,47,32,.55));
+  box-shadow:inset 0 1px 0 rgba(248,211,144,.1);
+}
+.table-surface {
+  border: 12px solid #50321f;
+  border-radius: 49px;
+  background:
+    radial-gradient(circle at 46% 32%,rgba(221,205,132,.09) 0%,transparent 52%),
+    repeating-linear-gradient(27deg,rgba(255,233,159,.012) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 48% 40%,#355f42 0%,#244b36 58%,#172d24 100%);
+  box-shadow:
+    0 0 0 2px #bc8e55,
+    0 0 0 5px rgba(39,22,12,.73),
+    inset 0 0 0 2px rgba(211,163,99,.60),
+    inset 0 0 23px 5px rgba(8,16,10,.70),
+    0 23px 42px rgba(0,0,0,.38);
+}
+.table-surface::after {
+  content:""; position:absolute; inset:17px; pointer-events:none;
+  border-radius:28px; z-index:0; opacity:.75;
+  background:radial-gradient(ellipse at 20% 27%,rgba(255,226,157,.065),transparent 52%);
+  animation: tavern-light 12s ease-in-out infinite alternate;
+}
+@keyframes tavern-light { from { opacity:.47; transform:scale(1); } to { opacity:1; transform:scale(1.012); } }
+.table-surface__ring { inset:17px; border-color:rgba(227,200,135,.20); border-radius:31px; }
+.opponents { z-index:1; }
+.table-center { z-index:1; }
+.table-center__label { color:#f1d7a1; text-shadow:0 1px 8px #061f13; }
+.player-dock {
+  border: 1px solid rgba(184,139,76,.53);
+  border-radius:15px;
+  background:linear-gradient(120deg,rgba(40,29,20,.94),rgba(23,36,28,.94));
+  padding:10px 14px;
+  box-shadow: 0 12px 33px rgba(0,0,0,.34),inset 0 0 0 1px rgba(234,194,128,.05);
+}
+.drawer-banner { border:1px solid #a77e48; background:linear-gradient(90deg,#3d2b1c,#382f20 40%,#4e341f); box-shadow:inset 0 1px 0 rgba(255,225,170,.1),0 4px 14px rgba(0,0,0,.17); }
+.drawer-banner__avatar { background:#674d32; }
+.drawer-banner__badge { background:#634828; }
+.slot-heading,.slot-count { color:#ebd7ad; text-shadow:0 1px 4px #06190c; }
+.action-button--gold,.main-button { background:linear-gradient(160deg,#f1d59c,#be8c4a); box-shadow:inset 0 1px 0 rgba(255,255,255,.48),0 4px 10px rgba(0,0,0,.15); }
+.playing-card { box-shadow:0 5px 18px #0007; }
+.deck-button:not(:disabled):hover { transform:translateY(-3px) rotate(1deg); }
+.action-button--risky { background:linear-gradient(130deg,#d0a65f,#bc8749); color:#2c2114; border-color:#e4ba75; }
+.penalty-toast,.verdict-toast { animation: stamp-in .24s ease-out both; }
+@keyframes stamp-in { from { opacity:.25; transform:translate(-50%,-18px) scale(.92); } to { opacity:1; transform:translate(-50%,0) scale(1); } }
+@media(max-width:680px) {
+  .app-shell { background: repeating-linear-gradient(89deg,#3d291b,#2f1e15 80px,#4c311e 170px); }
+  .table-surface { border-width:6px; border-radius:25px; box-shadow:0 0 0 1px #bd9059,inset 0 0 12px #0c1a12,0 12px 25px #0007; }
+  .table-surface::after { inset:7px; border-radius:18px; }
+  .table-surface__ring { inset:8px; border-radius:15px; }
+  .player-dock { padding:7px; border-radius:12px; }
+  .game-status { padding:5px 8px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .table-surface::after,.penalty-toast,.verdict-toast { animation:none!important; }
+}
 
 </style>
