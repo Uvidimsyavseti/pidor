@@ -84,22 +84,22 @@ const trumpSymbol = computed(() => {
 });
 const trumpIsRed = computed(() => ['hearts','diamonds'].includes(state.value?.trumpSuit || ''));
 const canDraw = computed(() => state.value?.phase === 'DEALING'
-  && !!state.value.deck.length
-  && state.value.activeCard?.ownerId !== gameStore.playerId
-  && (!isMyTurn.value || !state.value.activeCard));
+  && !!state.value.deck.length && !state.value.activeCard);
 const riskyDraw = computed(() => state.value?.phase === 'DEALING' && !isMyTurn.value);
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
-const targeting = computed(() => state.value?.phase === 'DEALING' && isMyTurn.value && !!state.value?.activeCard);
+const targeting = computed(() => state.value?.phase === 'DEALING' && state.value?.activeCard?.ownerId === gameStore.playerId);
 const myPenaltyTurn = computed(() => state.value?.pendingPenaltyTurn?.giverId === gameStore.playerId);
 const penaltyTargets = computed(() => myPenaltyTurn.value ? others.value.filter(p => p.id === state.value?.pendingPenaltyTurn?.receiverId) : []);
 const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null && penaltyTargets.value.length > 0);
 const guidance = computed(() => {
   if (!state.value) return '';
   if (state.value.phase === 'DEALING') {
-    if (targeting.value) return 'Выберите игрока, которому положить карту. Если побить некого — себе.';
+    if (targeting.value) return riskyDraw.value
+      ? 'Ты вытянул вне очереди. Попробуй пристроить карту соседу! Если поймают за 15 секунд, карта вернётся к тебе.'
+      : 'Выберите игрока, которому положить карту. Если побить некого — себе.';
     if (isMyTurn.value) return 'Твоя очередь тянуть. Пиковая шестёрка остаётся у тебя, за неё могут обвинить.';
-    return 'Сейчас тянет ' + (turnPlayer.value?.name || 'другой игрок') + '. Можешь рискнуть и вытянуть вне очереди: карта останется у тебя, а другие могут предъявить штраф в течение 15 секунд.';
+    return 'Сейчас тянет ' + (turnPlayer.value?.name || 'другой игрок') + '. Можешь рискнуть и вытянуть вне очереди: если за 15 секунд никто не поймает, карту разрешено положить другому игроку.';
   }
   if (state.value.phase === 'PENALTY_REVIEW') {
     return me.value?.isReady
@@ -143,7 +143,7 @@ function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
   if (!state.value) return;
   haptic();
   if (state.value.phase === 'DEALING') {
-    if (state.value.activeCard && isMyTurn.value) gameStore.placeActiveCard(ownerId);
+    if (targeting.value) gameStore.placeActiveCard(ownerId);
     else if (ownerId === gameStore.playerId && isMyTurn.value) gameStore.takeFromPile(card.id);
   } else if (state.value.phase === 'MAIN_GAME') {
     if (isMyTurn.value) gameStore.playCard(card.id);
@@ -396,7 +396,7 @@ function newGame() {
         <Transition name="toast">
           <div v-if="latestDraw && state.phase === 'DEALING'" class="draw-activity" role="status">
             <strong>{{ state.players.find(p => p.id === latestDraw?.playerId)?.name }} вытянул карту</strong>
-            <span v-if="latestDraw.outOfTurn">ВНЕ ОЧЕРЕДИ · карта остаётся у игрока</span>
+            <span v-if="latestDraw.outOfTurn">ВНЕ ОЧЕРЕДИ · поймают за 15 секунд — карта вернётся</span>
             <span v-else-if="latestDraw.forcedSelf">ПИКОВАЯ 6 · карта остаётся у игрока</span>
             <span v-else>Ход по кругу</span>
           </div>
