@@ -96,9 +96,10 @@ const dealTargets = computed(() => {
   const seatOrder = [...others.value, ...(me.value ? [me.value] : [])];
   return seatOrder.filter(player => {
     if (player.id === gameStore.playerId) return true;
-    const top = player.stumps.at(-1);
-    return top && top.suit === card.suit &&
-      (card.rank === '6' && top.rank === 'A' || dealtRank[card.rank] > dealtRank[top.rank]);
+    const top = player.stumps[player.stumps.length - 1];
+    if (!top || top.suit !== card.suit) return false;
+    return (card.rank === '6' && top.rank === 'A') ||
+      (dealtRank[card.rank] ?? 0) > (dealtRank[top.rank] ?? 0);
   });
 });
 const myPenaltyTurn = computed(() => state.value?.pendingPenaltyTurn?.giverId === gameStore.playerId);
