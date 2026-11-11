@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useGameStore } from './stores/game';
 import PlayerSeat from './components/PlayerSeat.vue';
 import CardComponent from './components/CardComponent.vue';
@@ -8,8 +8,6 @@ import type { Card } from '@shared/types';
 const gameStore = useGameStore();
 const name = ref('');
 const room = ref(new URLSearchParams(window.location.search).get('room') || 'pidor-1');
-const joined = ref(false);
-watch(() => gameStore.error, error => { if (error) joined.value = false; });
 
 const selectedCard = ref<Card | null>(null);
 
@@ -25,7 +23,6 @@ onMounted(() => {
 function join() {
   if (name.value) {
     gameStore.joinRoom(name.value, room.value);
-    joined.value = true;
   }
 }
 
@@ -121,12 +118,13 @@ const penaltyPlayerName = computed(() => {
 <template>
   <div class="p-2 h-screen flex flex-col bg-slate-950 text-slate-100 font-sans select-none overflow-hidden">
     <!-- Auth -->
-    <div v-if="!joined" class="flex-1 flex flex-col items-center justify-center gap-6">
+    <div v-if="!gameStore.joined" class="flex-1 flex flex-col items-center justify-center gap-6">
       <h1 class="text-6xl font-black text-yellow-500 italic tracking-tighter">PIDOR</h1>
       <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 flex flex-col gap-4 w-80 shadow-2xl">
         <input v-model="name" placeholder="Имя" class="p-4 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:ring-2 ring-yellow-500" />
         <input v-model="room" placeholder="Комната" class="p-4 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:ring-2 ring-yellow-500" />
         <div v-if="gameStore.error" class="text-red-400 text-xs">{{ gameStore.error }}</div>
+        <div v-if="gameStore.connecting" class="text-yellow-400 text-xs text-center">Подключаемся к серверу...</div>
         <button @click="join" class="bg-yellow-500 text-slate-950 py-4 rounded-xl font-black text-xl active:scale-95 transition-all shadow-lg">ИГРАТЬ</button>
       </div>
     </div>
@@ -134,6 +132,7 @@ const penaltyPlayerName = computed(() => {
     <!-- Game -->
     <div v-else-if="gameStore.gameState" class="flex-1 flex flex-col relative">
       <div v-if="gameStore.error" class="bg-red-700 rounded-lg px-4 py-2">{{ gameStore.error }}</div>
+      <div v-if="!gameStore.connected" class="absolute top-12 left-1/2 -translate-x-1/2 z-50 text-sm text-yellow-300 bg-slate-900 rounded-lg px-4 py-2">{{ gameStore.error || 'Нет соединения с сервером' }}</div>
       <!-- Penalty Notification -->
       <Transition name="slide">
         <div v-if="gameStore.lastPenalty" class="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-red-600 px-6 py-3 rounded-2xl shadow-[0_0_40px_rgba(220,38,38,0.5)] border-2 border-red-400 text-center min-w-[300px]">
@@ -183,7 +182,7 @@ const penaltyPlayerName = computed(() => {
         <div class="flex-1 flex items-center justify-center gap-16 relative">
           <!-- Active Card -->
           <div v-if="gameStore.gameState.activeCard" class="absolute z-30 scale-150 animate-in fade-in zoom-in duration-300 pointer-events-none">
-             <CardComponent :card="gameStore.gameState.activeCard.card" />
+             <CardComponent :card="gameStore.gameState.activeCard.card" :hidden="gameStore.gameState.activeCard.card.id.startsWith('masked-')" />
           </div>
 
           <!-- Deck -->
