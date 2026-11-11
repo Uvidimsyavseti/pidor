@@ -27,7 +27,6 @@ const tables = ref<Table[]>([]);
 const busy = ref(false);
 const loading = ref(true);
 const error = ref('');
-const lastUpdated = ref(0);
 let poll: ReturnType<typeof setInterval> | null = null;
 const validName = computed(() => name.value.trim().length > 0 && name.value.trim().length <= 32);
 const onlineCount = computed(() => tables.value.reduce((sum, table) => sum + table.seats, 0));
@@ -55,7 +54,6 @@ async function refresh(silent = false): Promise<void> {
     if (!response.ok) throw new Error('Список столов временно недоступен');
     const result = await response.json() as { tables?: Table[] };
     tables.value = (result.tables || []).filter(t => t.seats > 0 && t.seats < t.capacity);
-    lastUpdated.value = Date.now();
     if (error.value === 'Не удалось загрузить столы') error.value = '';
   } catch {
     if (!silent) error.value = 'Не удалось загрузить столы';
@@ -162,7 +160,7 @@ function switchMode(next: 'friends'|'bot') {
 
         <div v-if="tab === 'tables'" class="entry__tables">
           <div class="entry__tables-head">
-            <span>ОЖИДАЮТ ИГРОКОВ <b>{{ tables.length }}</b></span>
+            <span>ОЖИДАЮТ <b>{{ tables.length }}</b> СТОЛОВ · {{ onlineCount }} ИГРОКОВ</span>
             <button type="button" :disabled="loading" @click="refresh()">↻ Обновить</button>
           </div>
           <div v-if="loading && !tables.length" class="entry__no-tables">Ищем свободные столы…</div>
