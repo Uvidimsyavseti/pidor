@@ -15,7 +15,7 @@ export const useGameStore = defineStore('game', {
   state: () => ({
     socket: null as WebSocket | null,
     gameState: null as GameState | null,
-    playerId: '', playerName: '', roomId: 'pidor-1',
+    playerId: '', playerName: '', roomId: 'pidor-1', tableTitle: '',
     roomMode: 'friends' as 'friends' | 'bot', botCount: 1,
     heartbeat: null as ReturnType<typeof setInterval> | null,
     joined: false, connected: false, connecting: false, reconnect: false, error: '',
@@ -25,6 +25,14 @@ export const useGameStore = defineStore('game', {
   }),
   actions: {
     connect() { /* open on join */ },
+    async loadTableTitle(roomId: string) {
+      try {
+        const response = await fetch('/api/room?id=' + encodeURIComponent(roomId), { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json() as { table?: { title?: string } };
+        if (this.roomId === roomId && data.table?.title) this.tableTitle = data.table.title;
+      } catch { /* old rooms without directory metadata work normally */ }
+    },
     openSocket() {
       if (!this.reconnect || this.socket) return;
       this.connecting = true;
@@ -114,10 +122,12 @@ export const useGameStore = defineStore('game', {
       this.joined = false;
       this.playerId = '';
       this.roomId = room;
+      this.tableTitle = '';
       this.roomMode = mode;
       this.botCount = Math.max(1, Math.min(3, Math.floor(botCount)));
       this.playerName = name.trim();
       this.reconnect = true;
+      if (mode === 'friends') void this.loadTableTitle(room);
       this.openSocket();
     },
     leaveRoom() {
@@ -128,6 +138,7 @@ export const useGameStore = defineStore('game', {
       this.error = '';
       this.gameState = null;
       this.playerId = '';
+      this.tableTitle = '';
       if (this.heartbeat) { clearInterval(this.heartbeat); this.heartbeat = null; }
       this.socket?.close(1000, 'Leaving table');
       this.socket = null;
