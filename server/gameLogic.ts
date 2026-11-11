@@ -29,12 +29,14 @@ function shuffle<T>(array: T[]): T[] {
 export class PidorGame {
   state: GameState;
   private penaltyDebts: Record<string, Record<string, number>> = {};
+  private previousDeckSuit: Suit | null = null;
   onPenalty: ((playerId: string, reason: string) => void) | null = null;
 
-  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts }; }
-  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>> }) {
+  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, previousDeckSuit: this.previousDeckSuit }; }
+  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; previousDeckSuit?: Suit | null }) {
     this.state = saved.state;
     this.penaltyDebts = saved.penaltyDebts || {};
+    this.previousDeckSuit = saved.previousDeckSuit || null;
   }
 
   constructor(playerIds: { id: string, name: string }[]) {
@@ -67,28 +69,17 @@ export class PidorGame {
       player.stumps = [this.state.deck.pop()!, this.state.deck.pop()!, this.state.deck.pop()!];
       player.hand = [];
     }
-    this.state.trumpSuit = this.determineTrump();
+    this.state.trumpSuit = null;
+    this.previousDeckSuit = null;
     this.state.phase = 'DEALING'; 
     this.state.turnIndex = 0;
     console.log("[GAME] Started. First turn:", this.state.players[0].name);
   }
 
-  private determineTrump(): Suit | null {
-    if (this.state.deck.length === 0) return null;
-    let idx = 0;
-    while (idx < this.state.deck.length && this.state.deck[idx].suit === 'spades') idx++;
-    return idx < this.state.deck.length ? this.state.deck[idx].suit : null;
-  }
-
-  private getRankValue(rank: Rank, compareTo?: Rank): number {
-    if (compareTo && rank === '6' && compareTo === 'A') return 15; 
-    return RANK_VALUE[rank];
-  }
-
   private canBeat(card: Card, target: Card): boolean {
-    const v1 = this.getRankValue(card.rank, target.rank);
-    const v2 = this.getRankValue(target.rank, card.rank);
-    return v1 > v2;
+    // A six beats an ace when placed on it, but aces still beat ordinary sixes.
+    return card.rank === '6' && target.rank === 'A'
+      ? true : RANK_VALUE[card.rank] > RANK_VALUE[target.rank];
   }
 
   private getPlayerIdx(id: string) { return this.state.players.findIndex(p => p.id === id); }
@@ -119,6 +110,14 @@ export class PidorGame {
     if (this.state.deck.length === 0) return false;
     
     const card = this.state.deck.pop()!;
+    if (this.state.deck.length === 0) {
+      // The last card establishes the trump suit. A final spade uses
+      // the previous drawn card's suit; two final spades mean no trump.
+      this.state.trumpSuit = card.suit === 'spades'
+        ? (this.previousDeckSuit === 'spades' ? null : this.previousDeckSuit)
+        : card.suit;
+    }
+    this.previousDeckSuit = card.suit;
     this.state.activeCard = { card, ownerId: actorId, fromDeck: true };
     this.state.lastDrawnPlayerIdx = idx;
     return true;
@@ -243,13 +242,19 @@ export class PidorGame {
     this.state.phase = 'PENALTY_DISTRIBUTION';
     for (const p of this.state.players) p.hand = p.stumps.splice(2);
     this.penaltyDebts = {};
-    for (const r of this.state.players) {
-      if (r.penalties > 0) {
-        this.penaltyDebts[r.id] = {};
-        for (const g of this.state.players) if (g.id !== r.id) this.penaltyDebts[r.id][g.id] = r.penalties;
+    // A player must retain at least one card. Distribute the available
+    // penalty cards without creating debts that can never be paid.
+    for (const giver of this.state.players) {
+      let available = Math.max(0, giver.hand.length - 1);
+      for (const receiver of this.state.players) {
+        if (giver.id === receiver.id || receiver.penalties <= 0 || available <= 0) continue;
+        const owed = Math.min(receiver.penalties, available);
+        (this.penaltyDebts[receiver.id] ??= {})[giver.id] = owed;
+        available -= owed;
       }
     }
-    if (Object.keys(this.penaltyDebts).length === 0) this.transitionToMainGame();
+    const total = Object.values(this.penaltyDebts).flatMap(x => Object.values(x)).reduce((a, b) => a + b, 0);
+    if (total === 0) this.transitionToMainGame();
   }
 
   givePenaltyCard(giverId: string, cardId: string, receiverId: string): boolean {
@@ -268,7 +273,7 @@ export class PidorGame {
 
   transitionToMainGame() {
     this.state.phase = 'MAIN_GAME';
-    this.state.turnIndex = (this.state.lastDrawnPlayerIdx! + 1) % this.state.players.length;
+    this.state.turnIndex = ((this.state.lastDrawnPlayerIdx ?? -1) + 1) % this.state.players.length;
     while (this.state.players[this.state.turnIndex].hasExited) this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
   }
 
@@ -317,8 +322,15 @@ export class PidorGame {
   exitGame(playerId: string) {
     const p = this.state.players.find(p => p.id === playerId);
     if (p && this.state.phase === 'MAIN_GAME' && this.state.currentTrick.length === 0 && p.hand.length === 0 && p.stumps.length === 0) {
+      if (p.hasExited) return;
       p.hasExited = true;
-      if (this.state.players.filter(p => !p.hasExited).length <= 1) this.state.phase = 'ENDED';
+      const remaining = this.state.players.filter(p => !p.hasExited);
+      if (remaining.length <= 1) {
+        if (remaining.length) remaining[0].onDuty = true;
+        this.state.phase = 'ENDED';
+      } else if (this.state.players[this.state.turnIndex]?.id === playerId) {
+        this.advanceTurn();
+      }
     }
   }
 
