@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useGameStore } from './stores/game';
 import PlayerSeat from './components/PlayerSeat.vue';
 import CardComponent from './components/CardComponent.vue';
+import HomeLobby from './components/HomeLobby.vue';
+import { playSound, soundEnabled, toggleSound } from './audio/gameAudio';
 import type { Card } from '@shared/types';
 
 interface TelegramWebApp {
@@ -22,7 +24,7 @@ interface TelegramWebApp {
 const tg = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
 const gameStore = useGameStore();
 const name = ref('');
-const room = ref(new URLSearchParams(window.location.search).get('room') || 'pidor-1');
+const room = ref(new URLSearchParams(window.location.search).get('room') || '');
 const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
@@ -33,7 +35,6 @@ const deckDragY = ref(0);
 const deckDragX = ref(0);
 const ignoreClickUntil = ref(0);
 const playMode = ref<'friends' | 'bot'>(new URLSearchParams(window.location.search).get('mode') === 'bot' ? 'bot' : 'friends');
-const botCount = ref(1);
 
 onMounted(() => {
   tg?.ready?.();
@@ -139,17 +140,20 @@ const guidance = computed(() => {
 const loser = computed(() => state.value?.players.find(p => !p.hasExited));
 
 function haptic() { tg?.HapticFeedback?.impactOccurred?.('light'); }
-function join() {
-  haptic();
-  if (!name.value.trim()) { gameStore.error = 'Введите имя игрока'; return; }
-  if (playMode.value === 'bot') {
-    const soloRoom = 'solo-' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-    room.value = soloRoom;
-    gameStore.joinRoom(name.value.trim(), soloRoom, 'bot', botCount.value);
-  } else {
-    gameStore.joinRoom(name.value.trim(), room.value.trim(), 'friends');
-  }
+function joinFromHome(payload: { name: string; room: string; mode: 'friends' | 'bot'; botCount: number }) {
+  name.value = payload.name;
+  room.value = payload.room;
+  playMode.value = payload.mode;
+  gameStore.joinRoom(payload.name, payload.room, payload.mode, payload.botCount);
 }
+function returnToLobby() {
+  haptic();
+  gameStore.leaveRoom();
+  room.value = '';
+  accuseOpen.value = false;
+  showRules.value = false;
+}
+
 function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
   if (!state.value) return;
   haptic();
@@ -238,9 +242,24 @@ async function invite() {
 }
 function newGame() {
   const botGame = state.value?.mode === 'bot';
-  room.value = (botGame ? 'solo-' : 'pidor-') + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-  gameStore.joinRoom(gameStore.playerName || name.value, room.value, botGame ? 'bot' : 'friends', botGame ? Math.max(1, state.value?.players.filter(p => p.isBot).length || 1) : 1);
+  if (!botGame) { returnToLobby(); return; }
+  room.value = 'solo-' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  gameStore.joinRoom(gameStore.playerName || name.value, room.value, 'bot',
+    Math.max(1, state.value?.players.filter(p => p.isBot).length || 1));
 }
+watch(() => gameStore.gameState?.phase, (next, prev) => {
+  if (next === prev) return;
+  if (next === 'DEALING') playSound('shuffle');
+  if (next === 'ENDED') playSound('finish');
+});
+watch(() => gameStore.gameState?.currentTrick.length, (next, prev) => {
+  if (prev !== undefined && next !== undefined && next > prev) playSound('place');
+});
+watch(() => gameStore.gameState?.turnIndex, (next, prev) => {
+  if (next !== prev && isMyTurn.value && state.value?.phase !== 'LOBBY') playSound('turn');
+});
+watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); });
+
 </script>
 
 <template>
@@ -253,46 +272,10 @@ function newGame() {
         <div class="brand"><span class="brand__mark">P</span><span>PIDOR<span class="brand__dot">.</span></span></div>
         <span class="site-header__label">Карточная игра · Онлайн</span>
       </header>
-      <main class="landing">
-        <div class="landing__intro">
-          <div class="eyebrow"><span class="eyebrow__line"></span> КАРТОЧНАЯ ИГРА ДЛЯ СВОИХ</div>
-          <h1>Собери друзей.<br/><em>Забери вахту.</em></h1>
-          <p>36 карт, одна колода и немного удачи. Играй в браузере, с телефона или через Telegram.</p>
-          <div class="landing__suits" aria-hidden="true"><span>♠</span><span>♥</span><span>♣</span><span>♦</span></div>
-        </div>
-        <form class="join-panel" @submit.prevent="join">
-          <div class="join-panel__top">
-            <div class="eyebrow">БЫСТРЫЙ СТАРТ</div>
-            <h2>Заходи за стол</h2>
-            <p>Представься и выбери комнату. Друзья смогут присоединиться по той же ссылке.</p>
-          </div>
-          <div class="mode-picker" role="group" aria-label="Выбор режима игры">
-            <button type="button" class="mode-picker__button" :class="{ 'mode-picker__button--active': playMode === 'friends' }" :aria-pressed="playMode === 'friends'" @click="playMode = 'friends'">
-              <span class="mode-picker__icon">♠</span><span>С друзьями</span>
-              <small>Онлайн-комната</small>
-            </button>
-            <button type="button" class="mode-picker__button" :class="{ 'mode-picker__button--active': playMode === 'bot' }" :aria-pressed="playMode === 'bot'" @click="playMode = 'bot'">
-              <span class="mode-picker__icon">♟</span><span>С ботом</span>
-              <small>Играй один</small>
-            </button>
-          </div>
-          <label class="field"><span>ВАШЕ ИМЯ</span><input v-model="name" maxlength="32" autocomplete="nickname" placeholder="Как тебя зовут?" /></label>
-          <label v-if="playMode === 'friends'" class="field"><span>НАЗВАНИЕ КОМНАТЫ</span><input v-model="room" maxlength="48" autocomplete="off" spellcheck="false" placeholder="pidor-1" /></label>
-          <label v-else class="field"><span>КОЛИЧЕСТВО БОТОВ</span>
-            <select v-model.number="botCount" class="bot-select">
-              <option :value="1">1 бот — один на один</option>
-              <option :value="2">2 бота — втроём</option>
-              <option :value="3">3 бота — вчетвером</option>
-            </select>
-            <span class="bot-note">Компьютер будет ходить автоматически. Без ожидания других игроков.</span>
-          </label>
-          <div v-if="gameStore.error" class="message message--error" role="alert">{{ gameStore.error }}</div>
-          <button type="submit" class="main-button" :disabled="gameStore.connecting">
-            {{ gameStore.connecting ? 'ПОДКЛЮЧАЕМСЯ…' : playMode === 'bot' ? 'ИГРАТЬ С БОТОМ' : 'ИГРАТЬ' }} <span aria-hidden="true">↗</span>
-          </button>
-          <div class="join-panel__bottom"><span class="status-light"></span> {{ playMode === 'bot' ? 'Бот играет по правилам · Без регистрации' : 'Работает без установки · 2–6 игроков' }}</div>
-        </form>
-      </main>
+      <HomeLobby :initial-name="name" :initial-room="room"
+        :initial-mode="playMode" :connecting="gameStore.connecting"
+        :server-error="gameStore.error" @start="joinFromHome" />
+
       <footer class="landing-footer">PIDOR · ИГРАЙ ПО ПРАВИЛАМ, ЕСЛИ СМОЖЕШЬ</footer>
     </template>
 
@@ -304,6 +287,8 @@ function newGame() {
           <strong>{{ state.mode === 'bot' ? 'ПРОТИВ БОТОВ' : gameStore.roomId }}</strong>
         </div>
         <div class="header-actions">
+          <button class="subtle-button lobby-return" type="button" @click="returnToLobby"><span class="desktop-label">⌂ Столы</span><span class="mobile-label">⌂</span></button>
+          <button class="sound-icon" type="button" :aria-label="soundEnabled ? 'Выключить звук' : 'Включить звук'" @click="toggleSound">{{ soundEnabled ? '♫' : '♪' }}</button>
           <div class="connection" :class="{ 'connection--off': !gameStore.connected }">
             <span class="status-light"></span>
             <span>{{ gameStore.connected ? 'В СЕТИ' : 'НЕТ СВЯЗИ' }}</span>
@@ -412,6 +397,10 @@ function newGame() {
         </Transition>
         <div class="table-surface">
           <div class="table-surface__ring" aria-hidden="true"></div>
+          <div class="table-ornament table-ornament--tl" aria-hidden="true"></div>
+          <div class="table-ornament table-ornament--tr" aria-hidden="true"></div>
+          <div class="table-ornament table-ornament--bl" aria-hidden="true"></div>
+          <div class="table-ornament table-ornament--br" aria-hidden="true"></div>
           <div class="opponents">
             <PlayerSeat
               v-for="p in others" :key="p.id"
@@ -922,6 +911,19 @@ function newGame() {
 }
 @media(prefers-reduced-motion:reduce) {
   .table-surface::after,.penalty-toast,.verdict-toast { animation:none!important; }
+}
+
+
+.sound-icon { display:grid;place-items:center; min-width:33px;min-height:33px;border-radius:10px;color:#f0d49e;background:#213d30;border:1px solid #8d734e;cursor:pointer;font-weight:900;font-size:15px; }
+.mobile-label { display:none; }
+@media(max-width:680px) {
+  .site-header--game .brand > span:nth-child(2) { display:none; }
+  .site-header--game .header-room strong { max-width:84px; }
+  .sound-icon { min-width:28px; min-height:30px; }
+  .lobby-return { padding:5px 7px;min-width:30px; }
+  .desktop-label { display:none; }
+  .mobile-label { display:inline; font-size:18px; }
+  .site-header--game .subtle-button:not(.lobby-return) { display:none; }
 }
 
 </style>
