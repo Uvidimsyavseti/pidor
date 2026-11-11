@@ -106,6 +106,12 @@ function invite() {
   } else { navigator.clipboard?.writeText(link).catch(() => window.prompt('Ссылка для приглашения', link)); }
 }
 
+const trumpSuitLabel = computed(() => {
+  const suit = gameStore.gameState?.trumpSuit;
+  const labels: Record<string, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
+  return suit ? labels[suit] || '?' : '?';
+});
+
 const penaltyPlayerName = computed(() => {
   if (!gameStore.lastPenalty) return '';
   return gameStore.gameState?.players.find(p => p.id === gameStore.lastPenalty?.playerId)?.name || 'Кто-то';
@@ -225,7 +231,7 @@ const penaltyPlayerName = computed(() => {
         <div class="absolute bottom-8 left-8 flex flex-col items-center bg-slate-900/50 p-3 rounded-2xl border border-slate-800">
           <span class="text-[10px] font-black text-slate-500 uppercase mb-1">Козырь</span>
           <div class="text-4xl" :class="{ 'text-red-500': gameStore.gameState.trumpSuit === 'hearts' || gameStore.gameState.trumpSuit === 'diamonds' }">
-            {{ {hearts:'♥', diamonds:'♦', clubs:'♣', spades:'♠'}[gameStore.gameState.trumpSuit || ''] || '?' }}
+            {{ trumpSuitLabel }}
           </div>
         </div>
       </div>
