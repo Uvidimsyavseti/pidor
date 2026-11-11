@@ -84,6 +84,9 @@ export class PidorRoom extends DurableObject<Env> {
     this.game.onPenalty = (playerId, reason) => {
       for (const socket of this.ctx.getWebSockets()) {
         emit(socket, 'penalty', { playerId, reason });
+        if ((socket.deserializeAttachment() as Connection | null)?.playerId === playerId) {
+          emit(socket, 'penaltyAwarded', { reason });
+        }
       }
     };
   }
@@ -115,6 +118,11 @@ export class PidorRoom extends DurableObject<Env> {
   private async saveGame(): Promise<void> {
     await this.ctx.storage.put('game', this.game.snapshot());
   }
+  private broadcastVerdict(accuserId: string, verdict: { correct: boolean; accusedId: string; penalizedId: string; reason: string }) {
+    for (const socket of this.ctx.getWebSockets()) {
+      emit(socket, 'accusationVerdict', { accuserId, ...verdict });
+    }
+  }
   private announcePenaltyCard(receiverId: string, giverId: string) {
     for (const socket of this.ctx.getWebSockets()) {
       const connection = socket.deserializeAttachment() as Connection | null;
@@ -139,7 +147,10 @@ export class PidorRoom extends DurableObject<Env> {
     if (this.roomMode !== 'bot') return;
     const move = nextBotMove(this.game, this.botIds);
     if (!move) return;
-    if (applyBotMove(this.game, move)) {
+    const verdict = move.type === 'accuse' ? this.game.accuse(move.actorId, move.accusedId) : null;
+    const applied = move.type === 'accuse' ? verdict !== null : applyBotMove(this.game, move);
+    if (applied) {
+      if (verdict) this.broadcastVerdict(move.actorId, verdict);
       if (move.type === 'givePenaltyCard') {
         this.announcePenaltyCard(move.receiverId, move.actorId);
       }
@@ -230,7 +241,15 @@ export class PidorRoom extends DurableObject<Env> {
       return emit(socket, 'joinError', 'Подключись к комнате');
     }
     const game = this.game;
-    if (type === 'startGame' && game.state.phase === 'LOBBY' && game.state.players.length >= 2) game.start();
+    if (type === 'accusePlayer' && typeof data.accusedId === 'string') {
+      const verdict = game.accuse(id, data.accusedId);
+      if (verdict) this.broadcastVerdict(id, verdict);
+      else emit(socket, 'actionError', 'Обвинение сейчас недоступно');
+    }
+    else if (type === 'finishReview') {
+      if (!game.finishReview(id)) emit(socket, 'actionError', 'Разбор уже завершён');
+    }
+    else if (type === 'startGame' && game.state.phase === 'LOBBY' && game.state.players.length >= 2) game.start();
     else if (type === 'drawCardFromDeck') game.takeFromDeck(id);
     else if (type === 'takeFromPile' && typeof data.cardId === 'string') game.takeFromPile(id, data.cardId);
     else if (type === 'placeActiveCard' && typeof data.targetPlayerId === 'string') game.placeActiveCard(id, data.targetPlayerId);
