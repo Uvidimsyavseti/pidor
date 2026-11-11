@@ -4,7 +4,7 @@ export const RANKS: Rank[] = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
 
 export const VIOLATION_WINDOW_MS = 15_000;
-export interface RuleViolation { id: string; playerId: string; reason: string; createdAt: number; }
+export interface RuleViolation { id: string; playerId: string; reason: string; createdAt: number; cardId?: string; }
 export interface AccusationVerdict { correct: boolean; accusedId: string; penalizedId: string; reason: string; }
 
 export const RANK_VALUE: Record<Rank, number> = {
@@ -107,7 +107,7 @@ export class PidorGame {
    * Record an observable violation; never award a penalty automatically.
    * Another player must explicitly accuse the offender for it to count.
    */
-  addPenalty(idx: number, reason: string): void {
+  addPenalty(idx: number, reason: string, cardId?: string): void {
     if (idx < 0 || this.state.phase === 'LOBBY' || this.state.phase === 'ENDED') return;
     const offenderId = this.state.players[idx]?.id;
     if (!offenderId) return;
@@ -115,8 +115,8 @@ export class PidorGame {
     this.violations = this.violations.filter(v => now - v.createdAt < VIOLATION_WINDOW_MS);
     // Unnoticed violations expire after 15 seconds: no retroactive fines.
     // Repeated requests for the same invalid action do not stack accusations.
-    if (this.violations.some(v => v.playerId === offenderId && v.reason === reason && now - v.createdAt < 2500)) return;
-    this.violations.push({ id: crypto.randomUUID(), playerId: offenderId, reason, createdAt: now });
+    if (this.violations.some(v => v.playerId === offenderId && v.reason === reason && v.cardId === cardId && now - v.createdAt < 2500)) return;
+    this.violations.push({ id: crypto.randomUUID(), playerId: offenderId, reason, createdAt: now, cardId });
     if (this.violations.length > 80) this.violations.shift();
   }
 
@@ -124,6 +124,42 @@ export class PidorGame {
     const now = Date.now();
     if (!this.state.players.some(p => p.id === observerId)) return [];
     return [...new Set(this.violations.filter(v => v.playerId !== observerId && now - v.createdAt < VIOLATION_WINDOW_MS).map(v => v.playerId))];
+  }
+
+  canAccuseNow(playerId: string): boolean {
+    return Date.now() - (this.lastAccusationAt[playerId] || 0) >= 1500;
+  }
+
+  /**
+   * A caught opportunistic draw is moved to the offender's pile even if
+   * they already laid it on an opponent. If no one accuses within 15s,
+   * its placement stands. The card is never copied or destroyed.
+   */
+  private reclaimCaughtCard(offenderId: string, cardId: string): void {
+    const offender = this.state.players.find(p => p.id === offenderId);
+    if (!offender || offender.stumps.some(c => c.id === cardId)) return;
+
+    let seized: Card | undefined;
+    if (this.state.activeCard?.card.id === cardId) {
+      seized = this.state.activeCard.card;
+      this.state.activeCard = null;
+    } else {
+      for (const player of this.state.players) {
+        for (const pile of [player.stumps, player.hand]) {
+          const index = pile.findIndex(c => c.id === cardId);
+          if (index !== -1) {
+            seized = pile.splice(index, 1)[0];
+            break;
+          }
+        }
+        if (seized) break;
+      }
+    }
+    if (seized) {
+      offender.stumps.push(seized);
+      this.lockedDrawCards.push(cardId);
+      this.checkPhaseEnd();
+    }
   }
 
   accuse(accuserId: string, accusedId: string): AccusationVerdict | null {
@@ -137,7 +173,9 @@ export class PidorGame {
     this.violations = this.violations.filter(v => now - v.createdAt < VIOLATION_WINDOW_MS);
     const index = this.violations.findIndex(v => v.playerId === accusedId);
     const correct = index !== -1;
-    const reason = correct ? this.violations.splice(index, 1)[0].reason : 'Ложное обвинение';
+    const confirmedViolation = correct ? this.violations.splice(index, 1)[0] : null;
+    const reason = confirmedViolation?.reason || 'Ложное обвинение';
+    if (confirmedViolation?.cardId) this.reclaimCaughtCard(accusedId, confirmedViolation.cardId);
     const punished = correct ? accused : accuser;
     punished.penalties++;
     this.onPenalty?.(punished.id, reason);
@@ -175,45 +213,48 @@ export class PidorGame {
     const idx = this.getPlayerIdx(actorId);
     if (idx === -1 || this.state.phase !== 'DEALING' || !this.state.deck.length) return false;
     const outOfTurn = idx !== this.state.turnIndex;
-    // An unresolved draw cannot be replaced by drawing a second card.
-    if (this.state.activeCard?.ownerId === actorId || (!outOfTurn && this.state.activeCard)) {
-      this.addPenalty(idx, 'Пытается вытянуть вторую карту');
+
+    // Only one unresolved card can be on the felt at any time. This is
+    // synchronization, not automatic punishment of an opportunistic player.
+    if (this.state.activeCard) {
+      if (this.state.activeCard.ownerId === actorId) this.addPenalty(idx, 'Пытается вытянуть вторую карту');
       return false;
     }
     if (!outOfTurn) {
       const targetIdx = this.findOtherBeatTarget(idx);
-      if (targetIdx !== -1) {
-        this.addPenalty(idx, 'Не кинул свою карту на ' + this.state.players[targetIdx].name);
-      }
+      if (targetIdx !== -1) this.addPenalty(idx, 'Не кинул свою карту на ' + this.state.players[targetIdx].name);
     }
 
     const card = this.state.deck.pop()!;
     const isSpadeSix = card.rank === '6' && card.suit === 'spades';
+    const isLast = this.state.deck.length === 0;
     const originalTop = this.state.players[idx].stumps.at(-1)!;
-
-    // The final spade means NO TRUMP, regardless of the preceding card.
-    if (!this.state.deck.length) this.state.trumpSuit = card.suit === 'spades' ? null : card.suit;
+    if (isLast) this.state.trumpSuit = card.suit === 'spades' ? null : card.suit;
     this.previousDeckSuit = card.suit;
     this.state.lastDrawnPlayerIdx = idx;
-    this.state.lastDrawEvent = { playerId: actorId, outOfTurn, forcedSelf: outOfTurn || isSpadeSix, createdAt: Date.now() };
+    this.state.lastDrawEvent = {
+      playerId: actorId, outOfTurn, forcedSelf: isSpadeSix || isLast, createdAt: Date.now()
+    };
 
-    if (outOfTurn) this.addPenalty(idx, 'Вытянул карту вне очереди');
+    // Record the suspected breach. No fine or forced card placement until
+    // another player makes a correct accusation within 15 seconds.
+    if (outOfTurn) this.addPenalty(idx, 'Вытянул карту вне очереди', card.id);
     if (isSpadeSix) this.addPenalty(idx, 'Вытянул пиковую шестёрку');
 
-    // A rule-breaking draw and the spade six are physically kept by the
-    // drawer, face up on their own pile. No player may transfer this card.
-    if (outOfTurn || isSpadeSix) {
+    // Spade six and the final deck card are special independent rules:
+    // they remain on the drawer's own pile even if cheating goes unnoticed.
+    if (isSpadeSix || isLast) {
       this.lockedDrawCards.push(card.id);
       this.state.players[idx].stumps.push(card);
-      // An out-of-turn draw does not steal the legitimate player's turn.
       if (!outOfTurn && !this.canBeat(card, originalTop)) {
         this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
       }
-      // If another draw is pending, it must still be resolved before review.
-      if (!this.state.activeCard) this.checkPhaseEnd();
+      this.checkPhaseEnd();
       return true;
     }
 
+    // An undetected illicit draw behaves like a regular drawn card. The
+    // real turn order remains unchanged; another player may still catch it.
     this.state.activeCard = { card, ownerId: actorId, fromDeck: true };
     return true;
   }
@@ -238,13 +279,15 @@ export class PidorGame {
     const actorIdx = this.getPlayerIdx(actorId);
     const targetIdx = this.getPlayerIdx(targetId);
     if (actorIdx === -1 || targetIdx === -1 || !this.state.activeCard) return false;
-    
-    if (actorIdx !== this.state.turnIndex) {
-      this.addPenalty(actorIdx, "Ход вне очереди");
+    if (this.state.activeCard.ownerId !== actorId) return false;
+    const { card, fromDeck } = this.state.activeCard;
+    const opportunistic = fromDeck && this.state.lastDrawEvent?.playerId === actorId
+      && this.state.lastDrawEvent.outOfTurn
+      && this.state.lastDrawEvent.createdAt > 0;
+    if (actorIdx !== this.state.turnIndex && !opportunistic) {
+      this.addPenalty(actorIdx, 'Ход вне очереди');
       return false;
     }
-
-    const { card, fromDeck } = this.state.activeCard;
     const actor = this.state.players[actorIdx];
     const target = this.state.players[targetIdx];
     const targetTop = target.stumps[target.stumps.length - 1];
@@ -258,7 +301,7 @@ export class PidorGame {
       if (!isSelf) this.addPenalty(actorIdx, "Последняя карта колоды - твоя");
       this.state.players[actorIdx].stumps.push(card);
       this.state.activeCard = null;
-      this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
+      if (!opportunistic) this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
       this.checkPhaseEnd();
       return true;
     }
@@ -280,11 +323,7 @@ export class PidorGame {
       }
       target.stumps.push(card);
       this.state.activeCard = null;
-      if (beatsTarget) {
-         // beats self -> keep turn
-      } else {
-         this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
-      }
+      if (!opportunistic && !beatsTarget) this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
       this.checkPhaseEnd();
       return true;
     } else {
