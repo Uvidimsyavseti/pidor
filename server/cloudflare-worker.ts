@@ -90,7 +90,13 @@ export class PidorRoom extends DurableObject<Env> {
   private broadcast(): void {
     for (const socket of this.ctx.getWebSockets()) {
       const playerId = (socket.deserializeAttachment() as Connection | null)?.playerId;
-      if (playerId) emit(socket, 'gameStateUpdate', visibleState(this.game.state, playerId));
+      if (playerId) {
+        const view = visibleState(this.game.state, playerId);
+        if (this.game.state.phase === 'PENALTY_DISTRIBUTION') {
+          view.pendingPenaltyDebts = this.game.snapshot().penaltyDebts;
+        }
+        emit(socket, 'gameStateUpdate', view);
+      }
     }
   }
   private async saveGame(): Promise<void> {
