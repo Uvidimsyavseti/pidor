@@ -41,22 +41,71 @@ try {
   const before = game.state.deck.length;
   const nextTop = game.state.deck[before - 1];
   assert.equal(game.takeFromDeck('bob'), true, 'Off-turn draw is allowed');
-  assert.equal(game.state.turnIndex, 0, 'The right player retains the turn');
+  assert.equal(game.state.turnIndex, 0, 'The right player retains their turn');
   assert.equal(game.state.deck.length, before - 1);
-  assert.equal(game.state.players[1].stumps.at(-1)?.id, nextTop.id, 'Illicit card forced into offender pile');
-  assert.equal(game.state.activeCard, null, 'Out-of-turn card cannot be transferred');
+  assert.equal(game.state.activeCard?.card.id, nextTop.id, 'Uncaught card remains playable');
+  assert.equal(game.state.players[1].stumps.some(c => c.id === nextTop.id), false,
+    'Without an accusation, card MUST NOT be forced onto offender pile');
   assert.equal(game.state.lastDrawEvent?.playerId, 'bob');
   assert.equal(game.state.lastDrawEvent?.outOfTurn, true);
-  assert.equal(game.state.lastDrawEvent?.forcedSelf, true);
-  assert.equal(game.state.players[1].penalties, 0, 'Fouls require a manual accusation');
+  assert.equal(game.state.lastDrawEvent?.forcedSelf, false);
+  assert.equal(game.state.players[1].penalties, 0, 'Fouls require manual accusation');
   assert.ok(game.accusableTargets('alice').includes('bob'));
-  game.state.turnIndex = 1;
-  assert.equal(game.takeFromPile('bob', nextTop.id), false, 'Out-of-turn card remains on offender pile');
-  game.state.turnIndex = 0;
-  const accused = game.accuse('alice','bob');
-  assert.equal(accused?.correct,true);
+
+  // A fast accusation seizes the still-active card and puts it on the drawer.
+  const caught = game.accuse('alice','bob');
+  assert.equal(caught?.correct, true);
+  assert.equal(caught.penalizedId, 'bob');
+  assert.equal(game.state.activeCard, null);
+  assert.equal(game.state.players[1].stumps.at(-1)?.id, nextTop.id);
   assert.equal(game.state.players[1].penalties, 1);
+  assert.equal(game.state.turnIndex, 0);
   check36(game);
+
+  // A fast accusation must also undo placement on ANOTHER player's pile.
+  const moved = new PidorGame([{id:'alice',name:'Alice'},{id:'bob',name:'Bob'}]);
+  moved.start();
+  const alice = moved.state.players[0];
+  const desiredId = '6_of_clubs';
+  const original = alice.stumps[alice.stumps.length-1];
+  if (original.id !== desiredId) {
+    const deckIndex=moved.state.deck.findIndex(c=>c.id===desiredId);
+    if(deckIndex>=0) {
+      alice.stumps[alice.stumps.length-1]=moved.state.deck[deckIndex];
+      moved.state.deck[deckIndex]=original;
+    } else {
+      const other=moved.state.players.flatMap(p=>p.stumps.map((c,i)=>({p,i,c})))
+        .find(x=>x.c.id===desiredId);
+      assert.ok(other,'Club six must be present in deck or player piles');
+      alice.stumps[alice.stumps.length-1]=other.c;
+      other.p.stumps[other.i]=original;
+    }
+  }
+  findAndMoveToDeckTop(moved, 'K','clubs');
+  assert.equal(moved.takeFromDeck('bob'),true);
+  assert.equal(moved.state.activeCard?.card.id,'K_of_clubs');
+  assert.equal(moved.placeActiveCard('bob','alice'),true,'Uncaught player may cheat to opponent');
+  assert.equal(alice.stumps.at(-1)?.id,'K_of_clubs');
+  assert.equal(moved.state.turnIndex,0,'Cheating must not steal the legitimate turn');
+  assert.equal(moved.accuse('alice','bob')?.correct,true);
+  assert.equal(alice.stumps.at(-1)?.id,desiredId,'Opponent pile restored');
+  assert.equal(moved.state.players[1].stumps.at(-1)?.id,'K_of_clubs','Caught card returned to offender');
+  check36(moved);
+
+  // The same placement succeeds if nobody notices for fifteen seconds.
+  const unseen = new PidorGame([{id:'alice',name:'Alice'},{id:'bob',name:'Bob'}]);
+  unseen.start();
+  assert.equal(unseen.takeFromDeck('bob'),true);
+  const stolen = unseen.state.activeCard.card;
+  assert.equal(unseen.placeActiveCard('bob','bob'),true);
+  assert.equal(unseen.state.players[1].stumps.at(-1)?.id,stolen.id);
+  now += VIOLATION_WINDOW_MS;
+  assert.equal(unseen.accuse('alice','bob')?.correct,false,'Late accusations are wrong');
+  assert.equal(unseen.state.players[1].penalties,0,'Unnoticed cheat stays unpenalized');
+  assert.equal(unseen.state.players[0].penalties,1,'False late caller is penalized');
+  assert.equal(unseen.state.players[1].stumps.at(-1)?.id,stolen.id,
+    'Unnoticed card placement stands');
+  check36(unseen);
 
   // A spade six always remains with the drawer (even during their legal turn).
   const forced = new PidorGame([{id:'alice',name:'Alice'},{id:'bob',name:'Bob'}]);
@@ -104,7 +153,7 @@ try {
   assert.equal(expiry.state.players[1].penalties,0);
   assert.equal(expiry.state.players[0].penalties,1);
 
-  console.log('PASS: turn identity, off-turn forced self, manual accusation, spade-six forced self, last-spade no-trump, 6-beats-A, 15-second cheat window');
+  console.log('PASS: opportunistic off-turn draw stays playable when unseen, is reclaimed when caught within 15s, spade-six and no-trump rules');
 } finally {
   Date.now = originalNow;
 }
