@@ -3,6 +3,9 @@ import type { Card, Suit, Rank, GameState } from '../shared/types.js';
 export const RANKS: Rank[] = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
 
+export interface RuleViolation { id: string; playerId: string; reason: string; createdAt: number; }
+export interface AccusationVerdict { correct: boolean; accusedId: string; penalizedId: string; reason: string; }
+
 export const RANK_VALUE: Record<Rank, number> = {
   '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14
 };
@@ -31,14 +34,18 @@ export class PidorGame {
   private penaltyDebts: Record<string, Record<string, number>> = {};
   private penaltyQueue: { giverId: string; receiverId: string }[] = [];
   private previousDeckSuit: Suit | null = null;
+  private violations: RuleViolation[] = [];
+  private lastAccusationAt: Record<string, number> = {};
   onPenalty: ((playerId: string, reason: string) => void) | null = null;
 
-  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, penaltyQueue: this.penaltyQueue, previousDeckSuit: this.previousDeckSuit }; }
-  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; penaltyQueue?: { giverId: string; receiverId: string }[]; previousDeckSuit?: Suit | null }) {
+  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts, penaltyQueue: this.penaltyQueue, previousDeckSuit: this.previousDeckSuit, violations: this.violations, lastAccusationAt: this.lastAccusationAt }; }
+  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>>; penaltyQueue?: { giverId: string; receiverId: string }[]; previousDeckSuit?: Suit | null; violations?: RuleViolation[]; lastAccusationAt?: Record<string, number> }) {
     this.state = saved.state;
     this.penaltyDebts = saved.penaltyDebts || {};
     this.penaltyQueue = saved.penaltyQueue || this.buildPenaltyQueue();
     this.previousDeckSuit = saved.previousDeckSuit || null;
+    this.violations = saved.violations || [];
+    this.lastAccusationAt = saved.lastAccusationAt || {};
   }
 
   constructor(playerIds: { id: string, name: string }[]) {
@@ -66,6 +73,8 @@ export class PidorGame {
   }
 
   start() {
+    this.violations = [];
+    this.lastAccusationAt = {};
     this.state.deck = createDeck();
     for (const player of this.state.players) {
       player.stumps = [this.state.deck.pop()!, this.state.deck.pop()!, this.state.deck.pop()!];
@@ -86,11 +95,61 @@ export class PidorGame {
 
   private getPlayerIdx(id: string) { return this.state.players.findIndex(p => p.id === id); }
 
-  addPenalty(idx: number, reason: string) {
-    if (idx < 0) return;
-    this.state.players[idx].penalties++;
-    console.log(`[PENALTY] ${this.state.players[idx].name}: ${reason}`);
-    if (this.onPenalty) this.onPenalty(this.state.players[idx].id, reason);
+  /**
+   * Record an observable violation; never award a penalty automatically.
+   * Another player must explicitly accuse the offender for it to count.
+   */
+  addPenalty(idx: number, reason: string): void {
+    if (idx < 0 || this.state.phase === 'LOBBY' || this.state.phase === 'ENDED') return;
+    const offenderId = this.state.players[idx]?.id;
+    if (!offenderId) return;
+    const now = Date.now();
+    this.violations = this.violations.filter(v => now - v.createdAt < 120_000);
+    // Repeated requests for the same invalid action do not stack accusations.
+    if (this.violations.some(v => v.playerId === offenderId && v.reason === reason && now - v.createdAt < 2500)) return;
+    this.violations.push({ id: crypto.randomUUID(), playerId: offenderId, reason, createdAt: now });
+    if (this.violations.length > 80) this.violations.shift();
+  }
+
+  accusableTargets(observerId: string): string[] {
+    const now = Date.now();
+    if (!this.state.players.some(p => p.id === observerId)) return [];
+    return [...new Set(this.violations.filter(v => v.playerId !== observerId && now - v.createdAt < 120_000).map(v => v.playerId))];
+  }
+
+  accuse(accuserId: string, accusedId: string): AccusationVerdict | null {
+    if (this.state.phase === 'LOBBY' || this.state.phase === 'ENDED') return null;
+    const accuser = this.state.players.find(p => p.id === accuserId && !p.hasExited);
+    const accused = this.state.players.find(p => p.id === accusedId);
+    if (!accuser || !accused || accuserId === accusedId) return null;
+    const now = Date.now();
+    if (now - (this.lastAccusationAt[accuserId] || 0) < 1500) return null;
+    this.lastAccusationAt[accuserId] = now;
+    this.violations = this.violations.filter(v => now - v.createdAt < 120_000);
+    const index = this.violations.findIndex(v => v.playerId === accusedId);
+    const correct = index !== -1;
+    const reason = correct ? this.violations.splice(index, 1)[0].reason : 'Ложное обвинение';
+    const punished = correct ? accused : accuser;
+    punished.penalties++;
+    this.onPenalty?.(punished.id, reason);
+    return { correct, accusedId, penalizedId: punished.id, reason };
+  }
+
+  finishReview(playerId: string): boolean {
+    if (this.state.phase !== 'PENALTY_REVIEW') return false;
+    const player = this.state.players.find(p => p.id === playerId);
+    if (!player) return false;
+    player.isReady = true;
+    if (this.state.players.every(p => p.isReady || p.isBot)) {
+      this.violations = []; // No retroactive accusations after distributing cards.
+      this.transitionToPenaltyDistribution();
+    }
+    return true;
+  }
+
+  private enterReview(): void {
+    this.state.phase = 'PENALTY_REVIEW';
+    for (const player of this.state.players) player.isReady = !!player.isBot;
   }
 
   // --- Dealing Phase ---
@@ -236,7 +295,7 @@ export class PidorGame {
 
   private checkPhaseEnd() {
     if (this.state.phase === 'DEALING' && this.state.deck.length === 0 && !this.state.activeCard) {
-      this.transitionToPenaltyDistribution();
+      this.enterReview();
     }
   }
 
