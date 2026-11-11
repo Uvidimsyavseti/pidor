@@ -149,7 +149,7 @@ const penaltyPlayerName = computed(() => {
         <div class="flex gap-2">
            <button @click="invite" class="bg-slate-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Пригласить</button>
            <button @click="gameStore.takeStumps()" v-if="me?.hand.length === 0 && me?.stumps.length > 0" class="bg-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Пеньки</button>
-           <button @click="gameStore.exitGame()" v-if="me?.hand.length === 0 && me?.stumps.length === 0" class="bg-red-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Выход</button>
+           <button @click="gameStore.exitGame()" v-if="gameStore.gameState.phase === 'MAIN_GAME' && me?.hand.length === 0 && me?.stumps.length === 0" class="bg-red-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Выход</button>
         </div>
       </header>
 
