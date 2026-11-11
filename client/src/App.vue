@@ -92,7 +92,7 @@ const guidance = computed(() => {
   }
   if (state.value.phase === 'PENALTY_REVIEW') {
     return me.value?.isReady
-      ? 'Ты закончил разбор. Ждём решения остальных игроков.'
+      ? 'Разбор длится максимум 15 секунд. Ждём завершения или решения остальных.'
       : 'Вспомните нарушения. Назови нарушителя кнопкой «ПОХУЁВАЯ!» или закончи разбор.';
   }
   if (state.value.phase === 'PENALTY_DISTRIBUTION') {
@@ -325,7 +325,7 @@ function newGame() {
             <strong id="accuse-title">ПОХУЁВАЯ!</strong>
             <button type="button" aria-label="Закрыть" @click="accuseOpen = false">✕</button>
           </div>
-          <p>Кто нарушил правила? Назови игрока. Если нарушение было — похуёвая ему. Если ошибся — получишь её сам.</p>
+          <p>У тебя 15 секунд с момента нарушения, чтобы назвать игрока. Успел и прав — похуёвая нарушителю. Ошибся или опоздал — штраф тебе. Не заметили вовремя — игрок успешно смухлевал.</p>
           <div class="accusation-sheet__players">
             <button v-for="p in others.filter(p => !p.hasExited)" :key="p.id" type="button" @click="callOut(p.id)">
               <span>{{ p.name.charAt(0).toUpperCase() }}</span>{{ p.name }} <small v-if="p.isBot">БОТ</small>
@@ -372,7 +372,7 @@ function newGame() {
         <div v-if="state.phase === 'PENALTY_REVIEW'" class="review-bar">
           <div>
             <strong>Разбор нарушений</strong>
-            <p>Похуёвые начисляются только по обвинению игрока. За ложный вызов наказание получит обвинитель.</p>
+            <p>Последние 15 секунд для обвинений. За неподтверждённое обвинение штраф получает обвинитель. После отсчёта разбор закончится автоматически.</p>
             <small>Готовы: {{ state.players.filter(p => p.isReady || p.isBot).length }} / {{ state.players.length }}</small>
           </div>
           <button type="button" :disabled="!!me?.isReady" @click="readyReview">{{ me?.isReady ? 'ОЖИДАЕМ ОСТАЛЬНЫХ…' : 'ЗАКОНЧИТЬ РАЗБОР' }}</button>
