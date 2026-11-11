@@ -308,7 +308,7 @@ export class PidorGame {
 
   takeStumps(playerId: string) {
     const p = this.state.players.find(p => p.id === playerId);
-    if (p && p.hand.length === 0 && this.state.currentTrick.length === 0) {
+    if (p && this.state.phase === 'MAIN_GAME' && p.hand.length === 0 && this.state.currentTrick.length === 0) {
       p.hand.push(...p.stumps);
       p.stumps = [];
     }
@@ -316,7 +316,7 @@ export class PidorGame {
 
   exitGame(playerId: string) {
     const p = this.state.players.find(p => p.id === playerId);
-    if (p && p.hand.length === 0 && p.stumps.length === 0) {
+    if (p && this.state.phase === 'MAIN_GAME' && this.state.currentTrick.length === 0 && p.hand.length === 0 && p.stumps.length === 0) {
       p.hasExited = true;
       if (this.state.players.filter(p => !p.hasExited).length <= 1) this.state.phase = 'ENDED';
     }
