@@ -115,7 +115,7 @@ function join() {
   haptic();
   if (!name.value.trim()) { gameStore.error = 'Введите имя игрока'; return; }
   if (playMode.value === 'bot') {
-    const soloRoom = 'solo-' + crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+    const soloRoom = 'solo-' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
     room.value = soloRoom;
     gameStore.joinRoom(name.value.trim(), soloRoom, 'bot', botCount.value);
   } else {
@@ -200,7 +200,7 @@ async function invite() {
 }
 function newGame() {
   const botGame = state.value?.mode === 'bot';
-  room.value = (botGame ? 'solo-' : 'pidor-') + crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+  room.value = (botGame ? 'solo-' : 'pidor-') + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
   gameStore.joinRoom(gameStore.playerName || name.value, room.value, botGame ? 'bot' : 'friends', botGame ? Math.max(1, state.value?.players.filter(p => p.isBot).length || 1) : 1);
 }
 </script>
