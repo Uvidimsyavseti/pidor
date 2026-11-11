@@ -16,6 +16,7 @@ export const useGameStore = defineStore('game', {
     socket: null as WebSocket | null,
     gameState: null as GameState | null,
     playerId: '', playerName: '', roomId: 'pidor-1',
+    roomMode: 'friends' as 'friends' | 'bot', botCount: 1,
     joined: false, connected: false, connecting: false, reconnect: false, error: '',
     lastPenalty: null as { playerId: string; reason: string } | null
   }),
@@ -32,6 +33,7 @@ export const useGameStore = defineStore('game', {
         this.connecting = false;
         ws.send(JSON.stringify({ type: 'joinRoom', data: {
           playerName: this.playerName,
+          mode: this.roomMode, botCount: this.botCount,
           sessionToken: sessionStorage.getItem(sessionKey(this.roomId)) || '',
           initData: telegramInitData()
         }}));
@@ -72,7 +74,7 @@ export const useGameStore = defineStore('game', {
         }
       };
     },
-    joinRoom(name: string, room: string) {
+    joinRoom(name: string, room: string, mode: 'friends' | 'bot' = 'friends', botCount = 1) {
       if (!/^[a-zA-Z0-9_-]{1,48}$/.test(room)) { this.error = 'Комната: 1–48 латинских букв, цифр, - или _'; return; }
       if (!name.trim() || name.length > 32) { this.error = 'Введи имя от 1 до 32 символов'; return; }
       this.reconnect = false;
@@ -82,6 +84,8 @@ export const useGameStore = defineStore('game', {
       this.joined = false;
       this.playerId = '';
       this.roomId = room;
+      this.roomMode = mode;
+      this.botCount = Math.max(1, Math.min(3, Math.floor(botCount)));
       this.playerName = name.trim();
       this.reconnect = true;
       this.openSocket();
