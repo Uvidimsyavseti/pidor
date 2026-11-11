@@ -76,7 +76,7 @@ export class PidorGame {
     console.log("[GAME] Started. First turn:", this.state.players[0].name);
   }
 
-  private canBeat(card: Card, target: Card): boolean {
+  canBeat(card: Card, target: Card): boolean {
     // A six beats an ace when placed on it, but aces still beat ordinary sixes.
     return card.rank === '6' && target.rank === 'A'
       ? true : RANK_VALUE[card.rank] > RANK_VALUE[target.rank];
@@ -295,7 +295,7 @@ export class PidorGame {
     } else this.addPenalty(idx, "Не бьет");
   }
 
-  private isLegalMove(card: Card, target: Card | null): boolean {
+  isLegalMove(card: Card, target: Card | null): boolean {
     if (!target) return true;
     if (target.rank === 'A' && (target.suit === 'spades' || target.suit === this.state.trumpSuit)) return false;
     if (target.suit === 'spades') return card.suit === 'spades' && this.canBeat(card, target);
