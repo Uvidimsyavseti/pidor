@@ -96,7 +96,10 @@ export class PidorGame {
   }
 
   canBeat(card: Card, target: Card): boolean {
-    // A six beats an ace when placed on it, but aces still beat ordinary sixes.
+    // During the deal a card may cover only a weaker card of the SAME suit.
+    // Search the table clockwise, skipping players whose visible suit differs.
+    if (card.suit !== target.suit) return false;
+    // A six can cover the ace of its own suit, but not any other suit.
     return card.rank === '6' && target.rank === 'A'
       ? true : RANK_VALUE[card.rank] > RANK_VALUE[target.rank];
   }
