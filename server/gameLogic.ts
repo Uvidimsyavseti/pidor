@@ -1,4 +1,4 @@
-import { Card, Suit, Rank, Player, GameState, GamePhase } from '../shared/types.js';
+import type { Card, Suit, Rank, GameState } from '../shared/types.js';
 
 export const RANKS: Rank[] = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -30,6 +30,12 @@ export class PidorGame {
   state: GameState;
   private penaltyDebts: Record<string, Record<string, number>> = {};
   onPenalty: ((playerId: string, reason: string) => void) | null = null;
+
+  snapshot() { return { state: this.state, penaltyDebts: this.penaltyDebts }; }
+  restore(saved: { state: GameState; penaltyDebts?: Record<string, Record<string, number>> }) {
+    this.state = saved.state;
+    this.penaltyDebts = saved.penaltyDebts || {};
+  }
 
   constructor(playerIds: { id: string, name: string }[]) {
     this.state = {
