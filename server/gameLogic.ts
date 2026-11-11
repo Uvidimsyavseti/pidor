@@ -3,6 +3,7 @@ import type { Card, Suit, Rank, GameState } from '../shared/types.js';
 export const RANKS: Rank[] = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
 
+export const VIOLATION_WINDOW_MS = 15_000;
 export interface RuleViolation { id: string; playerId: string; reason: string; createdAt: number; }
 export interface AccusationVerdict { correct: boolean; accusedId: string; penalizedId: string; reason: string; }
 
@@ -104,7 +105,8 @@ export class PidorGame {
     const offenderId = this.state.players[idx]?.id;
     if (!offenderId) return;
     const now = Date.now();
-    this.violations = this.violations.filter(v => now - v.createdAt < 120_000);
+    this.violations = this.violations.filter(v => now - v.createdAt < VIOLATION_WINDOW_MS);
+    // Unnoticed violations expire after 15 seconds: no retroactive fines.
     // Repeated requests for the same invalid action do not stack accusations.
     if (this.violations.some(v => v.playerId === offenderId && v.reason === reason && now - v.createdAt < 2500)) return;
     this.violations.push({ id: crypto.randomUUID(), playerId: offenderId, reason, createdAt: now });
@@ -114,7 +116,7 @@ export class PidorGame {
   accusableTargets(observerId: string): string[] {
     const now = Date.now();
     if (!this.state.players.some(p => p.id === observerId)) return [];
-    return [...new Set(this.violations.filter(v => v.playerId !== observerId && now - v.createdAt < 120_000).map(v => v.playerId))];
+    return [...new Set(this.violations.filter(v => v.playerId !== observerId && now - v.createdAt < VIOLATION_WINDOW_MS).map(v => v.playerId))];
   }
 
   accuse(accuserId: string, accusedId: string): AccusationVerdict | null {
@@ -125,7 +127,7 @@ export class PidorGame {
     const now = Date.now();
     if (now - (this.lastAccusationAt[accuserId] || 0) < 1500) return null;
     this.lastAccusationAt[accuserId] = now;
-    this.violations = this.violations.filter(v => now - v.createdAt < 120_000);
+    this.violations = this.violations.filter(v => now - v.createdAt < VIOLATION_WINDOW_MS);
     const index = this.violations.findIndex(v => v.playerId === accusedId);
     const correct = index !== -1;
     const reason = correct ? this.violations.splice(index, 1)[0].reason : 'Ложное обвинение';
