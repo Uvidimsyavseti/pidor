@@ -90,6 +90,12 @@ export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove
   }
 
   const last = state.currentTrick.at(-1) || null;
+  // Human-like opponents can voluntarily take the bottom card even if
+  // they could beat it. This also avoids repeating the same conservative
+  // move pattern indefinitely in difficult no-trump games.
+  if (last && Math.random() < 0.12) {
+    return { type: 'takeTrick', actorId: actor.id };
+  }
   const playable = actor.hand
     .filter(card => game.isLegalMove(card, last))
     .sort((a, b) => cardCost(a, state.trumpSuit) - cardCost(b, state.trumpSuit));
