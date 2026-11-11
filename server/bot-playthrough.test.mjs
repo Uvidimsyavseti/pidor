@@ -1,0 +1,64 @@
+import assert from 'node:assert/strict';
+import { PidorGame } from './gameLogic.ts';
+import { applyBotMove, nextBotMove } from './botStrategy.ts';
+
+function seeded(seed) {
+  let value = seed >>> 0;
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
+}
+
+function checkCards(game) {
+  const s=game.state;
+  const cards=[...s.deck,...s.discardPile,...s.currentTrick,
+    ...(s.activeCard?[s.activeCard.card]:[]),
+    ...s.players.flatMap(p=>[...p.hand,...p.stumps])];
+  assert.equal(cards.length,36,'All 36 cards remain present');
+  assert.equal(new Set(cards.map(c=>c.id)).size,36,'All cards have unique identities');
+}
+
+function runSolo(seed,botCount) {
+  const random=Math.random;
+  Math.random=seeded(seed);
+  try {
+    const humanId='human';
+    const bots=Array.from({length:botCount},(_,i)=>'bot-'+i);
+    const game=new PidorGame([
+      {id:humanId,name:'Human'},
+      ...bots.map((id,i)=>({id,name:'Bot '+(i+1)}))
+    ]);
+    game.state.mode='bot';
+    game.start();
+    checkCards(game);
+    const phases=new Set(['DEALING']);
+    const moves={human:0,bot:0};
+    let steps=0;
+    for(;steps<14000 && game.state.phase!=='ENDED';steps++) {
+      const botMove=nextBotMove(game,bots);
+      const humanMove=nextBotMove(game,[humanId]);
+      const move=botMove || humanMove;
+      assert.ok(move,'There must be a legal next action');
+      if (game.state.phase==='PENALTY_DISTRIBUTION') {
+        const expected=game.currentPenaltyTurn();
+        assert.ok(expected,'Penalty queue has an active giver');
+        assert.equal(move.actorId,expected.giverId,'Penalty must be given in order');
+      }
+      assert.ok(applyBotMove(game,move),'Every generated bot move must be legal: '+JSON.stringify(move));
+      moves[bots.includes(move.actorId)?'bot':'human']++;
+      phases.add(game.state.phase);
+      checkCards(game);
+    }
+    assert.equal(game.state.phase,'ENDED','Solo game reaches a conclusion');
+    assert.ok(phases.has('MAIN_GAME'),'Main game was reached');
+    assert.ok(moves.bot>0 && moves.human>0,'Both bot and human performed actions');
+    assert.equal(game.state.players.filter(p=>p.onDuty).length,1,'One player loses');
+    console.log('SOLO GAME PASSED '+JSON.stringify({seed,botCount,steps,phases:[...phases],moves,loser:game.state.players.find(p=>p.onDuty)?.name}));
+  } finally { Math.random=random; }
+}
+
+runSolo(20261112,1);
+runSolo(1234567,2);
+runSolo(100820,3);
+console.log('PASS: solo bot strategy works with 1, 2 and 3 bots, 36-card integrity and ordered penalties');
