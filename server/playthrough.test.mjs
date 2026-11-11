@@ -46,11 +46,10 @@ function run(seed, count) {
   assert.ok(game.state.trumpSuit===null||['hearts','diamonds','clubs'].includes(game.state.trumpSuit),'Nonspade trump');
   while(game.state.phase==='PENALTY_DISTRIBUTION' && stats.steps<9000) {
     stats.steps++;
-    const debt=game.snapshot().penaltyDebts;
-    const pairs=Object.entries(debt).flatMap(([receiverId,gs])=>
-      Object.entries(gs).filter(([,n])=>n>0).map(([giverId])=>({giverId,receiverId})));
-    assert.ok(pairs.length,'Penalty must be payable');
-    const {giverId,receiverId}=pairs[0];
+    const turn = game.currentPenaltyTurn();
+    assert.ok(turn, 'Sequential penalty queue must provide the next transfer');
+    const {giverId,receiverId} = turn;
+    assert.ok(game.snapshot().penaltyDebts[receiverId]?.[giverId] > 0, 'Penalty turn must have an outstanding debt');
     const giver=game.state.players.find(p=>p.id===giverId);
     assert.ok(giver.hand.length>1,'Retain last hand card');
     const card=[...giver.hand].sort((a,b)=>score(b,game.state.trumpSuit)-score(a,game.state.trumpSuit))[0];
