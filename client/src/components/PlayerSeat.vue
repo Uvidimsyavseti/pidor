@@ -285,4 +285,12 @@ function selectCard(card: Card) {
 }
 @media (prefers-reduced-motion:reduce) { .seat__stack-layer--top, .seat__hand-scroll--expanded .seat__hand-card { animation:none; } }
 
+
+.seat--target { animation:seat-target-pulse 1.45s ease-in-out infinite; }
+@keyframes seat-target-pulse { 0%,100% { box-shadow:0 0 0 1px rgba(237,197,124,.25),0 7px 20px #0005; } 50% { box-shadow:0 0 0 4px rgba(255,209,120,.52),0 7px 23px #0007; } }
+.seat--turn .seat__avatar { box-shadow:0 0 0 2px #e4c282,0 0 15px #eac4815a; }
+.seat__hand-card { animation:card-appear .26s ease-out backwards; }
+@keyframes card-appear { from { opacity:.25; filter:blur(2px); } to { opacity:1; filter:blur(0); } }
+@media (prefers-reduced-motion:reduce) { .seat--target,.seat__hand-card {animation:none;} }
+
 </style>
