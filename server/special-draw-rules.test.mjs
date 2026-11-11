@@ -50,6 +50,9 @@ try {
   assert.equal(game.state.lastDrawEvent?.forcedSelf, true);
   assert.equal(game.state.players[1].penalties, 0, 'Fouls require a manual accusation');
   assert.ok(game.accusableTargets('alice').includes('bob'));
+  game.state.turnIndex = 1;
+  assert.equal(game.takeFromPile('bob', nextTop.id), false, 'Out-of-turn card remains on offender pile');
+  game.state.turnIndex = 0;
   const accused = game.accuse('alice','bob');
   assert.equal(accused?.correct,true);
   assert.equal(game.state.players[1].penalties, 1);
@@ -67,6 +70,8 @@ try {
   assert.equal(forced.state.lastDrawEvent?.forcedSelf,true);
   assert.equal(forced.state.players[0].penalties,0,'Spade six requires accusation');
   assert.ok(forced.accusableTargets('bob').includes('alice'));
+  forced.state.turnIndex = 0;
+  assert.equal(forced.takeFromPile('alice','6_of_spades'),false,'Spade 6 cannot be thrown away during the draw phase');
   assert.equal(forced.accuse('bob','alice')?.correct,true);
   check36(forced);
 
