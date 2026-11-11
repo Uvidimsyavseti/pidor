@@ -1,7 +1,6 @@
 interface TelegramEnv {
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
-  TELEGRAM_BOOTSTRAP_KEY?: string;
 }
 
 type TelegramUpdate = {
@@ -104,15 +103,6 @@ export async function handleTelegram(request: Request, env: TelegramEnv): Promis
     }
     if (!/^[a-zA-Z0-9_-]{1,256}$/.test(env.TELEGRAM_WEBHOOK_SECRET!)) {
       return Response.json({ error: 'Webhook secret must be 1-256 chars (letters, numbers, _ or -)' }, { status: 400 });
-    }
-    return activateBot(env, url.origin);
-  }
-  // One-time bootstrap guarded by a separate, short-lived Cloudflare secret.
-  // The bootstrap key is never a bot token or webhook secret.
-  if (url.pathname === '/telegram/bootstrap' && request.method === 'GET') {
-    if (!configured || !env.TELEGRAM_BOOTSTRAP_KEY) return new Response('Not found', { status: 404 });
-    if (!secretEquals(url.searchParams.get('key') || '', env.TELEGRAM_BOOTSTRAP_KEY)) {
-      return new Response('Forbidden', { status: 403 });
     }
     return activateBot(env, url.origin);
   }
