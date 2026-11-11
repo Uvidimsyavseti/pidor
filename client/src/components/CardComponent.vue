@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { cardPackAvailable, checkCardPack } from '../cards/cardPack';
 import type { Card, Rank, Suit } from '@shared/types';
 
 const props = defineProps<{ card?: Card; hidden?: boolean; small?: boolean }>();
-const packLoaded = ref(false);
 const artworkError = ref(false);
-let manifestChecked = false;
 const SUIT_CODE: Record<Suit, string> = { clubs: 'C', diamonds: 'D', hearts: 'H', spades: 'S' };
 const picture = computed(() =>
   props.hidden || !props.card || props.card.id.startsWith('masked-')
@@ -14,14 +13,7 @@ const picture = computed(() =>
       '_' + SUIT_CODE[props.card.suit] + '.webp'
 );
 watch(picture, () => { artworkError.value = false; });
-onMounted(() => {
-  if (manifestChecked) return;
-  manifestChecked = true;
-  fetch('/cards/manifest.json', { cache: 'force-cache' })
-    .then(r => r.ok ? r.json() : null)
-    .then(meta => { if (meta?.pack === 'pidor-ornamental-36') packLoaded.value = true; })
-    .catch(() => { /* CSS cards remain available until images are deployed */ });
-});
+onMounted(() => { void checkCardPack(); });
 
 const suitSymbol: Record<Suit, string> = {
   hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠'
@@ -46,7 +38,7 @@ const faceName: Partial<Record<Rank, string>> = {
     }"
     :aria-label="hidden ? 'Рубашка карты' : card ? rankLabel[card.rank] + ' ' + suitSymbol[card.suit] : 'Карта'"
   >
-    <template v-if="packLoaded && !artworkError">
+    <template v-if="cardPackAvailable && !artworkError">
       <img :src="picture" class="playing-card__art" :alt="hidden ? 'Рубашка' : (card?.rank || '') + ' ' + (card ? suitSymbol[card.suit] : '')"
         draggable="false" loading="lazy" decoding="async" @error="artworkError = true" />
     </template>
