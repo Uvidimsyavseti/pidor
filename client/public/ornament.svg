@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260">
+<defs>
+ <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#cad288"/><stop offset=".54" stop-color="#74883c"/><stop offset="1" stop-color="#47672d"/></linearGradient>
+ <linearGradient id="petal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f9b766"/><stop offset=".45" stop-color="#d95228"/><stop offset="1" stop-color="#8c291a"/></linearGradient>
+ <radialGradient id="cream"><stop stop-color="#ffe9af"/><stop offset="1" stop-color="#dfac65"/></radialGradient>
+</defs>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M14 209 Q94 164 155 98 T342 46" stroke="#b9874b" stroke-width="6"/>
+ <path d="M60 174 Q74 128 51 86 M118 126 Q115 87 87 58 M185 80 Q190 127 247 143 M245 58 Q247 23 229 9" stroke="#b9874b" stroke-width="4"/>
+ <path d="M25 197 Q14 150 45 144 Q63 172 25 197ZM58 171 Q54 124 88 117 Q95 151 58 171ZM67 149 Q75 181 115 163 Q102 129 67 149Z M90 154 Q84 116 122 99 Q134 132 90 154Z M129 116 Q130 79 160 68 Q176 106 129 116ZM152 100 Q155 130 192 133 Q190 102 152 100Z M180 83 Q178 50 218 37 Q221 76 180 83Z M216 62 Q220 91 255 104 Q258 74 216 62Z M276 45 Q273 13 300 1 Q313 36 276 45Z M278 44 Q316 38 338 62 Q313 78 278 44Z" fill="url(#leaf)" stroke="#d3b16b" stroke-width="2"/>
+ <path d="M84 53 C73 21 89 2 111 27 C120 -4 146 3 144 30 C170 20 182 42 154 58 C176 77 158 94 137 81 C119 104 95 95 99 71 C69 74 59 54 84 53Z" fill="url(#petal)" stroke="#f0b56b" stroke-width="3"/>
+ <circle cx="121" cy="55" r="17" fill="url(#cream)" stroke="#853b21" stroke-width="3"/>
+ <circle cx="121" cy="55" r="7" fill="#a56229" stroke="none"/>
+ <path d="M279 63 C267 35 284 20 302 44 C313 16 340 23 334 50 C365 38 370 71 342 76 C355 102 327 113 313 88 C297 110 273 93 286 75 C261 81 254 59 279 63Z" fill="url(#petal)" stroke="#edac64" stroke-width="2.5"/>
+ <circle cx="313" cy="69" r="13" fill="url(#cream)" stroke="#8e4929" stroke-width="3"/>
+ <circle cx="313" cy="69" r="5" fill="#9c602e" stroke="none"/>
+ <g fill="#eeaa61" stroke="#c17831" stroke-width="1"><circle cx="48" cy="111" r="6"/><circle cx="42" cy="99" r="5"/><circle cx="59" cy="103" r="5"/><circle cx="229" cy="126" r="7"/><circle cx="243" cy="115" r="5"/><circle cx="238" cy="138" r="5"/><circle cx="380" cy="49" r="5"/><circle cx="391" cy="58" r="6"/><circle cx="373" cy="62" r="4"/></g>
+ <path d="M15 210 Q99 173 159 110 T342 47" stroke="#f3c57b" stroke-width="1.1" opacity=".8"/>
+</g></svg>
