@@ -1,12 +1,14 @@
 import { DurableObject } from 'cloudflare:workers';
 import { PidorGame } from './gameLogic';
 import { applyBotMove, nextBotMove } from './botStrategy';
+import { handleTelegram } from './telegram';
 import type { Card, GameState } from '../shared/types';
 
 interface Env {
   ROOMS: DurableObjectNamespace<PidorRoom>;
   ASSETS: Fetcher;
   TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_WEBHOOK_SECRET?: string;
 }
 interface Session { playerId: string; name: string; telegramId?: number; }
 interface Connection { playerId?: string; }
@@ -101,6 +103,7 @@ export class PidorRoom extends DurableObject<Env> {
         const view = visibleState(this.game.state, playerId);
         if (this.game.state.phase === 'PENALTY_DISTRIBUTION') {
           view.pendingPenaltyDebts = this.game.snapshot().penaltyDebts;
+          view.pendingPenaltyTurn = this.game.currentPenaltyTurn();
         }
         emit(socket, 'gameStateUpdate', view);
       }
@@ -109,22 +112,39 @@ export class PidorRoom extends DurableObject<Env> {
   private async saveGame(): Promise<void> {
     await this.ctx.storage.put('game', this.game.snapshot());
   }
-  private async driveBots(): Promise<void> {
-    if (this.roomMode !== 'bot' || !this.botIds.length) return;
-    let actions = 0;
-    while (actions < 600) {
-      const move = nextBotMove(this.game, this.botIds);
-      if (!move) break;
-      if (!applyBotMove(this.game, move)) {
-        console.warn('Bot could not apply a move', move.type, this.game.state.phase);
-        break;
+  private announcePenaltyCard(receiverId: string, giverId: string) {
+    for (const socket of this.ctx.getWebSockets()) {
+      const connection = socket.deserializeAttachment() as Connection | null;
+      if (connection?.playerId === receiverId) {
+        emit(socket, 'penaltyCardReceived', { giverId });
       }
-      actions++;
     }
-    if (actions >= 600) console.warn('Bot action limit reached', this.game.state.phase);
-    if (actions) {
+  }
+
+  private async driveBots(): Promise<void> {
+    if (this.roomMode !== 'bot') return;
+    // Human sees each opponent action in sequence, not a burst of hundreds.
+    // Each alarm performs only one move and then schedules the next turn.
+    if (nextBotMove(this.game, this.botIds)) {
+      await this.ctx.storage.setAlarm(Date.now() + 850);
+    } else {
+      await this.ctx.storage.deleteAlarm();
+    }
+  }
+
+  async alarm(): Promise<void> {
+    if (this.roomMode !== 'bot') return;
+    const move = nextBotMove(this.game, this.botIds);
+    if (!move) return;
+    if (applyBotMove(this.game, move)) {
+      if (move.type === 'givePenaltyCard') {
+        this.announcePenaltyCard(move.receiverId, move.actorId);
+      }
       await this.saveGame();
       this.broadcast();
+      await this.driveBots();
+    } else {
+      console.warn('Bot move rejected', move.type, this.game.state.phase);
     }
   }
 
@@ -212,7 +232,9 @@ export class PidorRoom extends DurableObject<Env> {
     else if (type === 'takeFromPile' && typeof data.cardId === 'string') game.takeFromPile(id, data.cardId);
     else if (type === 'placeActiveCard' && typeof data.targetPlayerId === 'string') game.placeActiveCard(id, data.targetPlayerId);
     else if (type === 'givePenaltyCard' && typeof data.cardId === 'string' && typeof data.receiverId === 'string') {
-      game.givePenaltyCard(id, data.cardId, data.receiverId);
+      if (game.givePenaltyCard(id, data.cardId, data.receiverId)) {
+        this.announcePenaltyCard(data.receiverId, id);
+      }
     } else if (type === 'playCard' && typeof data.cardId === 'string') game.playCard(id, data.cardId);
     else if (type === 'takeTrick') game.takeTrick(id);
     else if (type === 'takeStumps') game.takeStumps(id);
@@ -235,6 +257,7 @@ export class PidorRoom extends DurableObject<Env> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname.startsWith('/telegram/')) return handleTelegram(request, env);
     if (url.pathname === '/health') return Response.json({ ok: true, service: 'pidor' });
     if (url.pathname === '/ws') {
       const room = url.searchParams.get('room') || '';
