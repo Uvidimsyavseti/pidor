@@ -18,7 +18,8 @@ export const useGameStore = defineStore('game', {
     playerId: '', playerName: '', roomId: 'pidor-1',
     roomMode: 'friends' as 'friends' | 'bot', botCount: 1,
     joined: false, connected: false, connecting: false, reconnect: false, error: '',
-    lastPenalty: null as { playerId: string; reason: string } | null
+    lastPenalty: null as { playerId: string; reason: string } | null,
+    penaltySplash: false, splashSequence: 0
   }),
   actions: {
     connect() { /* open on join */ },
@@ -59,7 +60,15 @@ export const useGameStore = defineStore('game', {
         else if (message.type === 'penalty') {
           const data = message.data as { playerId: string; reason: string };
           this.lastPenalty = data;
-          setTimeout(() => { if (this.lastPenalty === data) this.lastPenalty = null; }, 4000);
+          setTimeout(() => { if (this.lastPenalty === data) this.lastPenalty = null; }, 2500);
+        } else if (message.type === 'penaltyCardReceived') {
+          this.splashSequence++;
+          const sequence = this.splashSequence;
+          this.penaltySplash = true;
+          this.lastPenalty = null;
+          setTimeout(() => {
+            if (this.splashSequence === sequence) this.penaltySplash = false;
+          }, 1900);
         }
       };
       ws.onerror = () => { this.error = 'Сервер недоступен — проверь подключение'; };
@@ -81,6 +90,8 @@ export const useGameStore = defineStore('game', {
       this.socket?.close();
       this.socket = null;
       this.gameState = null;
+      this.lastPenalty = null;
+      this.penaltySplash = false;
       this.joined = false;
       this.playerId = '';
       this.roomId = room;
