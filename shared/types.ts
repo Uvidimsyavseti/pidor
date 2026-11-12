@@ -19,6 +19,7 @@ export interface Player {
   isBot?: boolean;
 }
 export interface CardDrawReveal {
+  id: string;
   playerId: string;
   card: Card;
   before: number;
