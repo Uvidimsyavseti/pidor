@@ -73,6 +73,8 @@ const seats = computed(() => others.value.map((player, i) => ({
 })));
 const canDraw = computed(() => currentPhase.value === 'DEALING' && isMyTurn.value && !state.value?.activeCard && !animationLocked.value && !pending.value && !(state.value?.initialDealEndsAt && clock.value < state.value.initialDealEndsAt));
 const canPlay = computed(() => currentPhase.value === 'MAIN_GAME' && isMyTurn.value && !animationLocked.value && !pending.value);
+const reviewSeconds = computed(() => Math.max(0, Math.ceil(((state.value?.reviewDeadlineAt || clock.value) - clock.value) / 1000)));
+const loser = computed(() => state.value?.players.find(player => player.onDuty) || null);
 const active = computed(() => state.value?.activeCard);
 const trumpSymbol: Record<Suit, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
 const isRedTrump = computed(() => state.value?.trumpSuit === 'diamonds' || state.value?.trumpSuit === 'hearts');
@@ -148,6 +150,16 @@ async function createRoom() {
   });
   if (!table) { showToast(game.lastError || 'Ошибка создания стола'); return; }
   joinRoom(table.id, { mode: 'friends', underlaidCards: table.underlaidCards });
+}
+async function inviteFriend() {
+  const link = new URL(location.href);
+  link.searchParams.set('room', room.value);
+  const message = 'Сыграем в PIDOR ONLINE? ' + link.toString();
+  try {
+    if (navigator.share) await navigator.share({ title: 'PIDOR ONLINE', text: message, url: link.toString() });
+    else if (navigator.clipboard) { await navigator.clipboard.writeText(message); showToast('Ссылка скопирована'); }
+    else showToast('Код стола: ' + room.value);
+  } catch { /* Cancelled share: no action needed. */ }
 }
 function backToLobby() {
   game.disconnect();
@@ -447,7 +459,7 @@ onBeforeUnmount(() => {
           <span v-for="p in state.players" :key="p.id" class="lobby__person">◆ {{ p.name }}</span>
         </div>
         <button v-if="state.players.length >= 2 && state.hostId === game.playerId" class="lobby__button" @click="game.startGame()">Начать партию</button>
-        <div v-else class="lobby__subtitle">{{ state.players.length < 2 ? "Ожидаем игроков" : "Ожидаем ведущего" }}</div><div class="lobby__subtitle">Код стола: {{ room }}</div><button class="lobby__secondary" @click="backToLobby">Назад</button>
+        <div v-else class="lobby__subtitle">{{ state.players.length < 2 ? "Ожидаем игроков" : "Ожидаем ведущего" }}</div><div class="lobby__subtitle">Код стола: {{ room }}</div><button class="lobby__secondary" @click="inviteFriend">↗ Пригласить друга</button><button class="lobby__secondary" @click="backToLobby">Назад</button>
       </div>
     </section>
 
@@ -462,6 +474,7 @@ onBeforeUnmount(() => {
           <PlayerSeat
             :player="entry.player"
             :phase="state.phase"
+            :underlaid-cards="state.underlaidCards !== false"
             :is-turn="state.players[state.turnIndex]?.id === entry.player.id"
             :hidden-card-ids="hiddenIds"
             @click="handleSeatClick(entry.player.id)"
@@ -469,7 +482,7 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div v-if="me && state.phase === 'DEALING'" class="table__seat table__seat--self">
+        <div v-if="me && ['DEALING', 'PENALTY_REVIEW'].includes(state.phase)" class="table__seat table__seat--self">
           <PlayerSeat
             :player="me"
             :phase="state.phase"
@@ -522,7 +535,7 @@ onBeforeUnmount(() => {
       <footer class="hand-area">
         <div class="hand-area__actions">
           <button v-if="['DEALING', 'PENALTY_REVIEW', 'MAIN_GAME'].includes(state.phase)" class="action-pill action-pill--quiet" @click="accuseSelected" :disabled="!selectedAccused">☠ ПОХУЁВАЯ! {{ selectedAccused ? state.players.find(p => p.id === selectedAccused)?.name : '' }}</button>
-          <button v-if="state.phase === 'PENALTY_REVIEW'" class="action-pill action-pill--quiet" @click="game.finishReview()">Продолжить</button>
+          <button v-if="state.phase === 'PENALTY_REVIEW'" class="action-pill action-pill--quiet" @click="game.finishReview()">Продолжить <span v-if="reviewSeconds">· {{ reviewSeconds }}с</span></button>
           <button v-if="state.phase === 'MAIN_GAME' && isMyTurn && state.currentTrick.length" class="action-pill" @click="game.takeTrick()">Забрать</button>
           <button v-if="me && !me.hand.length && me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill" @click="game.takeStumps()">Беру пеньки</button>
           <button v-if="me && !me.hand.length && !me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill action-pill--quiet" @click="game.exitGame()">Выйти</button>
@@ -534,6 +547,24 @@ onBeforeUnmount(() => {
           @select="tone('select')" @hover="fanHover = $event"
         />
       </footer>
+      <Transition name="toast">
+        <section v-if="state.phase === 'ENDED'" class="end-screen" aria-live="polite">
+          <span class="end-screen__eyebrow">Партия завершена</span>
+          <h2>Игра окончена</h2>
+          <p v-if="loser">☠ {{ loser.name }} · последний за столом</p>
+          <div class="end-screen__scores">
+            <span v-for="p in state.players" :key="p.id">{{ p.name }} <b>☠ {{ p.penalties }}</b></span>
+          </div>
+          <button class="lobby__button" @click="backToLobby">К новым партиям</button>
+        </section>
+      </Transition>
+    </section>
+    <section v-else class="lobby">
+      <div class="lobby__panel" role="status">
+        <p class="lobby__subtitle">{{ game.connected ? 'Подключаемся к столу…' : 'Соединяемся с сервером…' }}</p>
+        <p v-if="game.lastError" class="lobby__subtitle">{{ game.lastError }}</p>
+        <button class="lobby__secondary" @click="backToLobby">К списку столов</button>
+      </div>
     </section>
 
     <Transition name="toast">
