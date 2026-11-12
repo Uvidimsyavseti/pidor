@@ -6,14 +6,14 @@ import type { Card } from '@shared/types';
 
 interface Table {
   id: string; title: string; seats: number; capacity: number;
-  players: string[]; phase: string; visibility: 'public' | 'private';
+  players: string[]; phase: string; visibility: 'public' | 'private'; underlaidCards?: boolean;
 }
 const props = defineProps<{
   initialName?: string; initialRoom?: string; initialMode?: 'friends' | 'bot';
   connecting?: boolean; serverError?: string;
 }>();
 const emit = defineEmits<{
-  start: [payload: { name: string; room: string; mode: 'friends' | 'bot'; botCount: number }];
+  start: [payload: { name: string; room: string; mode: 'friends' | 'bot'; botCount: number; underlaidCards: boolean }];
 }>();
 
 const mode = ref<'friends' | 'bot'>(props.initialMode || 'friends');
@@ -22,6 +22,7 @@ const name = ref(props.initialName || '');
 const botCount = ref(1);
 const newTitle = ref('Стол у камина');
 const privateTable = ref(false);
+const underlaidCards = ref(true);
 const inviteCode = ref(props.initialRoom || '');
 const tables = ref<Table[]>([]);
 const busy = ref(false);
@@ -64,11 +65,11 @@ function checkName(): boolean {
   error.value = '';
   return true;
 }
-function enter(room: string, joinMode: 'friends' | 'bot'): void {
+function enter(room: string, joinMode: 'friends' | 'bot', useBase = underlaidCards.value): void {
   if (!checkName() || props.connecting) return;
   try { localStorage.setItem('pidor:last-name', name.value.trim()); } catch { /* optional */ }
   playSound('join');
-  emit('start', { name: name.value.trim(), room, mode: joinMode, botCount: botCount.value });
+  emit('start', { name: name.value.trim(), room, mode: joinMode, botCount: botCount.value, underlaidCards: useBase });
 }
 async function createRoom(isPrivate = privateTable.value): Promise<void> {
   if (!checkName() || busy.value || props.connecting) return;
@@ -77,18 +78,18 @@ async function createRoom(isPrivate = privateTable.value): Promise<void> {
     const result = await fetch('/api/rooms', {
       method:'POST', headers:{ 'content-type':'application/json' },
       body: JSON.stringify({ title: newTitle.value.trim() || 'Стол у камина',
-        visibility: isPrivate ? 'private' : 'public' })
+        visibility: isPrivate ? 'private' : 'public', underlaidCards: underlaidCards.value })
     });
     const data = await result.json() as { table?: Table; error?: string };
     if (!result.ok || !data.table) throw new Error(data.error || 'Не удалось создать стол');
-    enter(data.table.id, 'friends');
+    enter(data.table.id, 'friends', data.table.underlaidCards !== false);
   } catch (e) { error.value = e instanceof Error ? e.message : 'Ошибка создания стола'; }
   finally { busy.value = false; }
 }
 async function quickPlay(): Promise<void> {
   if (!checkName() || busy.value) return;
   const room = tables.value.find(t => t.seats > 0 && t.seats < t.capacity);
-  if (room) enter(room.id, 'friends');
+  if (room) enter(room.id, 'friends', room.underlaidCards !== false);
   else await createRoom(false);
 }
 function enterCode(): void {
@@ -171,9 +172,9 @@ function switchMode(next: 'friends'|'bot') {
           </div>
           <div v-else class="entry__table-list">
             <button v-for="table in tables" :key="table.id" type="button"
-              class="entry__table-item" :disabled="props.connecting" @click="enter(table.id,'friends')">
+              class="entry__table-item" :disabled="props.connecting" @click="enter(table.id,'friends',table.underlaidCards !== false)">
               <span class="entry__table-icon">♠</span>
-              <span class="entry__table-info"><strong>{{ table.title }}</strong><small>{{ table.players.join(', ') || 'Ждём игроков' }}</small></span>
+              <span class="entry__table-info"><strong>{{ table.title }}</strong><small>{{ table.underlaidCards === false ? 'Без подложенных' : 'С подложенными' }} · {{ table.players.join(', ') || 'Ожидает' }}</small></span>
               <span class="entry__table-seats">{{ table.seats }}/{{ table.capacity }} <span>↗</span></span>
             </button>
           </div>
@@ -185,6 +186,10 @@ function switchMode(next: 'friends'|'bot') {
         </div>
 
         <form v-else-if="tab === 'create'" class="entry__create" @submit.prevent="createRoom()">
+          <div class="entry__base-mode" role="group" aria-label="Подложенные карты">
+            <button type="button" :class="{active:underlaidCards}" :aria-pressed="underlaidCards" @click="underlaidCards = true">С подложенными</button>
+            <button type="button" :class="{active:!underlaidCards}" :aria-pressed="!underlaidCards" @click="underlaidCards = false">Без подложенных</button>
+          </div>
           <label class="entry__field"><span>НАЗВАНИЕ СТОЛА</span><input v-model="newTitle" maxlength="36" placeholder="Стол у камина"/></label>
           <button type="button" class="entry__privacy" :aria-pressed="privateTable" @click="privateTable = !privateTable">
             <span class="entry__privacy-icon">{{ privateTable ? '♧' : '♣' }}</span>
@@ -204,6 +209,10 @@ function switchMode(next: 'friends'|'bot') {
       </template>
 
       <div v-else class="entry__bots">
+        <div class="entry__base-mode" role="group" aria-label="Подложенные карты">
+          <button type="button" :class="{active:underlaidCards}" :aria-pressed="underlaidCards" @click="underlaidCards = true">С подложенными</button>
+          <button type="button" :class="{active:!underlaidCards}" :aria-pressed="!underlaidCards" @click="underlaidCards = false">Без подложенных</button>
+        </div>
         <div class="entry__bot-portrait">♠ <span>♜</span> ♣</div>
         <h3>Партия с компьютером</h3>
         <p>Боты следуют правилам, могут заметить нарушение и играют без ожидания других людей.</p>
@@ -336,4 +345,8 @@ function switchMode(next: 'friends'|'bot') {
 }
 @media(prefers-reduced-motion:reduce) { .entry__fan-card{transition:none;} }
 
+.entry__base-mode{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;background:#10271f;border-radius:10px;min-width:0}
+.entry__base-mode button{min-width:0;border:1px solid transparent;background:transparent;border-radius:7px;color:#d7cab0;min-height:39px;padding:7px 5px;cursor:pointer;font-size:11px;font-weight:800}
+.entry__base-mode button.active{color:#302315;border-color:#f6d99b;background:linear-gradient(150deg,#efd398,#c99b5a);box-shadow:0 2px 7px #0005}
+@media(max-width:365px){.entry__base-mode button{font-size:10px;}}
 </style>
