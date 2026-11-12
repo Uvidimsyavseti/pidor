@@ -15,14 +15,14 @@ origin = 'https://pidor.uvidimsyamd.workers.dev'
 worker = f'''const HTML = {json.dumps(html, ensure_ascii=False)};
 const JS = {json.dumps(js, ensure_ascii=False)};
 const CSS = {json.dumps(css, ensure_ascii=False)};
-const ORIGIN = {json.dumps(origin)};
+// Backend is attached with a Cloudflare service binding. No public workers.dev fetches.
 export default {{
   async fetch(request) {{
     const url = new URL(request.url);
     if (url.pathname === '/app.js') return new Response(JS, {{ headers: {{ 'content-type': 'application/javascript; charset=utf-8', 'cache-control': 'no-store' }} }});
     if (url.pathname === '/style.css') return new Response(CSS, {{ headers: {{ 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' }} }});
     if (url.pathname.startsWith('/cards/') || url.pathname.startsWith('/api/') || url.pathname.startsWith('/telegram/') || url.pathname === '/ws' || url.pathname === '/health') {{
-      return fetch(new Request(ORIGIN + url.pathname + url.search, request));
+      return env.BACKEND.fetch(request);
     }}
     return new Response(HTML, {{ headers: {{ 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' }} }});
   }}
