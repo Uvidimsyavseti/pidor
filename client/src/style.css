@@ -379,3 +379,13 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
  .table .seat__identity {font-size:10px;}
  .table .seat__count {font-size:9px;}
 }
+
+
+/* Smooth card flights: one physical card, stable 3D flip, no hard scale jump. */
+.card-flight {perspective:760px;contain:layout style;filter:drop-shadow(0 9px 10px #0005);}
+.card-flight__body {transform-origin:center center;backface-visibility:visible;will-change:transform;}
+.card-flight__body .playing-card {width:84px;height:118px;transform:none!important;backface-visibility:hidden;}
+.card-flight__body .playing-card img {display:block;width:100%;height:100%;object-fit:fill;}
+@media (prefers-reduced-motion:reduce) {
+ .card-flight,.card-flight__body {transition:none!important;filter:none;}
+}
