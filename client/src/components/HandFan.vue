@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Card } from '@shared/types';
 import CardComponent from './CardComponent.vue';
 
@@ -16,10 +16,11 @@ const snapping = ref(false);
 const overTarget = ref(false);
 const inFlight = ref(false);
 let releaseTimer: ReturnType<typeof setTimeout> | undefined;
+let resize: ResizeObserver | undefined;
+const width = ref(360);
 
 const spread = computed(() => {
-  const width = root.value?.clientWidth ?? 360;
-  return Math.max(22, Math.min(62, (width - 84) / Math.max(props.cards.length - 1, 1)));
+  return Math.max(22, Math.min(62, (width.value - 84) / Math.max(props.cards.length - 1, 1)));
 });
 const fanWidth = computed(() => props.cards.length ? 84 + (props.cards.length - 1) * spread.value : 0);
 const selected = computed(() => props.cards[index.value] ?? null);
@@ -66,6 +67,11 @@ function endPointer(e: PointerEvent) {
   overTarget.value = false;
   if (accepted && selected.value) {
     inFlight.value = true;
+    const target = document.querySelector('.table__trick')?.getBoundingClientRect();
+    if (target) {
+      snapping.value = true;
+      pos.value = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
+    }
     emit('play', selected.value);
     clearTimeout(releaseTimer);
     releaseTimer = setTimeout(reset, 450);
@@ -89,7 +95,16 @@ function reset() {
   inFlight.value = false;
   index.value = -1;
 }
-onBeforeUnmount(() => clearTimeout(releaseTimer));
+function cancelPointer(e: PointerEvent) {
+  if (pointerId.value === e.pointerId) reset();
+}
+onMounted(() => {
+  if (!root.value) return;
+  width.value = root.value.clientWidth;
+  resize = new ResizeObserver(entries => { width.value = entries[0]?.contentRect.width ?? width.value; });
+  resize.observe(root.value);
+});
+onBeforeUnmount(() => { clearTimeout(releaseTimer); resize?.disconnect(); });
 </script>
 
 <template>
@@ -101,7 +116,7 @@ onBeforeUnmount(() => clearTimeout(releaseTimer));
     @pointerdown="pointerDown"
     @pointermove="pointerMove"
     @pointerup="endPointer"
-    @pointercancel="endPointer"
+    @pointercancel="cancelPointer"
     @lostpointercapture="(e: PointerEvent) => { if (e.pointerId === pointerId) reset(); }"
   >
     <div class="hand-fan__cards" :style="{ width: fanWidth + 'px' }">
