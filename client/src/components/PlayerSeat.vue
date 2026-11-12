@@ -12,6 +12,8 @@ const props = defineProps<{
   selectedCardId?: string | null;
   targetable?: boolean;
   recommended?: boolean;
+  aimed?: boolean;
+  flyingCardId?: string | null;
   incomingCard?: Card | null;
   incomingCount?: number;
 }>();
@@ -41,6 +43,7 @@ function selectCard(card: Card) {
       'seat--turn': isTurn,
       'seat--target': targetable && !player.hasExited,
       'seat--recommended': recommended && targetable && !player.hasExited,
+      'seat--aimed': aimed && targetable && !player.hasExited,
       'seat--exited': player.hasExited
     }"
     :data-player-id="player.id"
@@ -70,7 +73,8 @@ function selectCard(card: Card) {
 
     <template v-if="!isMe">
       <div class="seat__opponent-cards">
-        <div v-if="player.stumps.length" class="seat__pile">
+        <div v-if="player.stumps.length" class="seat__pile"
+          :class="{ 'seat__pile--moving': player.stumps[player.stumps.length-1]?.id === flyingCardId }">
           <CardComponent :key="player.stumps[player.stumps.length - 1]?.id"
             :card="['DEALING','PENALTY_REVIEW'].includes(phase) && player.stumps.length >= (underlaidCards === false ? 1 : 3) ? player.stumps[player.stumps.length - 1] : undefined"
             :hidden="!['DEALING','PENALTY_REVIEW'].includes(phase) || player.stumps.length < (underlaidCards === false ? 1 : 3)"
@@ -106,7 +110,8 @@ function selectCard(card: Card) {
           <div v-if="player.stumps.length" class="seat__stack" :aria-label="'Стопка из ' + player.stumps.length + ' карт'">
             <div v-if="player.stumps.length > 1" class="seat__stack-layer seat__stack-layer--bottom"><CardComponent hidden /></div>
             <div v-if="player.stumps.length > 2" class="seat__stack-layer seat__stack-layer--middle"><CardComponent hidden /></div>
-            <div :key="player.stumps[player.stumps.length - 1]?.id" class="seat__stack-layer seat__stack-layer--top">
+            <div :key="player.stumps[player.stumps.length - 1]?.id" class="seat__stack-layer seat__stack-layer--top"
+              :class="{ 'seat__stack-layer--moving': player.stumps[player.stumps.length - 1]?.id === flyingCardId }">
               <button
                 v-if="player.stumps.length > (underlaidCards === false ? 0 : 3) && isTurn"
                 type="button"
@@ -348,5 +353,23 @@ function selectCard(card: Card) {
  .seat__incoming-card--mine :deep(.playing-card){--width:43px!important;}
 }
 @media(prefers-reduced-motion:reduce){.seat__incoming-card{animation:none;}}
+
+
+/* A flying card exists once: conceal its on-seat counterpart until landing. */
+.seat__pile--moving :deep(.playing-card),
+.seat__stack-layer--moving :deep(.playing-card){
+  opacity:0!important;
+}
+.seat--aimed .seat__pile :deep(.playing-card),
+.seat--aimed .seat__stack :deep(.playing-card) {
+  filter:drop-shadow(0 0 12px rgba(252,217,143,.82));
+  transform:translateY(-3px);
+  transition:filter .12s ease,transform .12s ease;
+}
+.seat--aimed .seat__name { color:#ffe6b0; }
+@media(prefers-reduced-motion:reduce) {
+  .seat--aimed .seat__pile :deep(.playing-card),
+  .seat--aimed .seat__stack :deep(.playing-card){transition:none;transform:none;}
+}
 
 </style>
