@@ -88,7 +88,6 @@ const canDraw = computed(() => state.value?.phase === 'DEALING'
 const riskyDraw = computed(() => state.value?.phase === 'DEALING' && !isMyTurn.value);
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
-const targeting = computed(() => state.value?.phase === 'DEALING' && state.value?.activeCard?.ownerId === gameStore.playerId);
 // The user may drop on ANY seat. Only the first eligible target gets a
 // recommended outline; other targets remain interactive for possible cheating.
 function isRecommendedTarget(playerId: string): boolean {
