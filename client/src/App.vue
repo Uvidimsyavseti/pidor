@@ -709,12 +709,12 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
               </div>
               <div v-if="centralDrawCard" class="game-board__action-zone"
                 :class="{ 'game-board__action-zone--in-flight':
-                  state.activeCard.ownerId === gameStore.playerId && !!(dragging || flying) }">
+                  state.activeCard?.ownerId === gameStore.playerId && !!(dragging || flying) }">
                 <div class="game-board__action-stack">
                   <button type="button"
                     class="game-board__active-card"
-                    :class="{ 'game-board__active-card--mine': state.activeCard.ownerId === gameStore.playerId }"
-                    :disabled="state.activeCard.ownerId !== gameStore.playerId"
+                    :class="{ 'game-board__active-card--mine': state.activeCard?.ownerId === gameStore.playerId }"
+                    :disabled="state.activeCard?.ownerId !== gameStore.playerId"
                     aria-label="Перенести открытую карту на игрока"
                     @pointerdown.prevent="beginDrag($event, 'active')">
                     <CardComponent :card="centralDrawCard" />
