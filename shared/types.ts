@@ -7,6 +7,15 @@ export interface Card {
   id: string;
 }
 
+/** Face-up draw: visible to every connected player, including the drawer. */
+export interface CardDrawReveal {
+  id: string;
+  playerId: string;
+  card: Card;
+  targetPlayerId?: string;
+  createdAt: number;
+}
+
 export type GamePhase = 'LOBBY' | 'DEALING' | 'PENALTY_REVIEW' | 'PENALTY_DISTRIBUTION' | 'MAIN_GAME' | 'ENDED';
 
 export interface Player {
