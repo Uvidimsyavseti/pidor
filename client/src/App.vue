@@ -290,10 +290,11 @@ function finishDrag(event: PointerEvent) {
   dragging.value = null;
   dragTarget.value = null;
   if (travel < 24 || !target || !state.value?.players.some(p => p.id === target)) return;
+  if (move.kind === 'pile' && target === gameStore.playerId) return; // own pile cannot be transferred onto itself
   if (move.kind === 'pile') gameStore.moveTopTo(target);
   else if (move.kind === 'active') gameStore.placeActiveCard(target);
   else if (state.value?.activeCard?.ownerId === gameStore.playerId) gameStore.placeActiveCard(target);
-  else if (state.value?.deck.length === move.deckBefore) {
+  else if (!state.value?.activeCard && state.value?.deck.length === move.deckBefore) {
     // The server has not replied yet; bind the drop to this specific draw.
     queuePendingDrop(target, move.deckBefore);
   }
