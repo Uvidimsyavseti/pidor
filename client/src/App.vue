@@ -6,6 +6,7 @@ import CardComponent from './components/CardComponent.vue';
 import HomeLobby from './components/HomeLobby.vue';
 import { playSound, soundEnabled, toggleSound } from './audio/gameAudio';
 import type { Card } from '@shared/types';
+import { resolveCardGesture, type GesturePoint, type ThrowSeat } from './gestures/cardThrow';
 
 interface TelegramWebApp {
   ready?: () => void;
@@ -41,7 +42,26 @@ const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
 const accuseOpen = ref(false);
-const dragging = ref<{kind:'deck'|'pile'|'active';pointerId:number;x:number;y:number;startX:number;startY:number;card:Card|null;deckBefore:number}|null>(null);
+type DragSession = {
+  kind:'deck'|'pile'|'active';pointerId:number;x:number;y:number;
+  startX:number;startY:number;card:Card|null;deckBefore:number;
+  samples:GesturePoint[];
+};
+type FlyingCard = {
+  card:Card|null;fromX:number;fromY:number;dx:number;dy:number;
+  duration:number;angle:number;deckBefore:number;kind:'drop'|'flick';
+};
+const dragging = ref<DragSession|null>(null);
+const flying = ref<FlyingCard|null>(null);
+let flightTimer: ReturnType<typeof setTimeout> | null = null;
+function clearFlight() {
+  if (flightTimer) clearTimeout(flightTimer);
+  flightTimer = null;
+  flying.value = null;
+}
+onUnmounted(clearFlight);
+const movingCardId = computed(() => dragging.value?.card?.id || flying.value?.card?.id || null);
+
 const deckRequestPending = ref(false);
 const initialDealLocked = ref(false);
 let initialDealTimer: ReturnType<typeof setTimeout> | null = null;
@@ -248,11 +268,25 @@ watch(() => state.value?.activeCard?.card.id, () => {
     playSound('place');
   }
 });
+watch(() => gameStore.drawReveal?.id, () => {
+  const reveal=gameStore.drawReveal;
+  if (!reveal || reveal.playerId !== gameStore.playerId) return;
+  // The actual card received from the server turns face-up in the moving
+  // card's own 3D container; no separate overlay on the drawer's screen.
+  if (dragging.value?.kind === 'deck' && dragging.value.deckBefore === (state.value?.deck.length || 0)+1) {
+    dragging.value={...dragging.value,card:reveal.card};
+  }
+  if (flying.value && flying.value.card === null &&
+      flying.value.deckBefore === (state.value?.deck.length || 0)+1) {
+    flying.value={...flying.value,card:reveal.card};
+  }
+});
 watch(() => gameStore.gameState?.phase, phase => {
   if (phase !== 'DEALING') {
     cancelPendingDrop();
     deckRequestPending.value = false;
     dragging.value = null;
+    clearFlight();
   }
 });
 function beginDrag(event: PointerEvent, kind: 'deck' | 'pile' | 'active') {
@@ -267,7 +301,8 @@ function beginDrag(event: PointerEvent, kind: 'deck' | 'pile' | 'active') {
     : kind === 'pile' ? me.value!.stumps[me.value!.stumps.length - 1]! : null;
   dragging.value = {kind,pointerId:event.pointerId,x:event.clientX,y:event.clientY,
     startX:event.clientX,startY:event.clientY,card,
-    deckBefore: state.value.deck.length};
+    deckBefore: state.value.deck.length,
+    samples: [{x:event.clientX,y:event.clientY,t:performance.now()}]};
   if (kind === 'deck') {
     deckRequestPending.value = true;
     gameStore.drawCardFromDeck();
@@ -275,35 +310,73 @@ function beginDrag(event: PointerEvent, kind: 'deck' | 'pile' | 'active') {
   }
   haptic();
 }
+function seatTargets(): ThrowSeat[] {
+  const ids = new Set(state.value?.players.filter(p => !p.hasExited).map(p => p.id) || []);
+  const targets: ThrowSeat[] = [];
+  for (const seat of document.querySelectorAll<HTMLElement>('[data-player-id]')) {
+    const id = seat.dataset.playerId;
+    if (!id || !ids.has(id)) continue;
+    const r = seat.getBoundingClientRect();
+    if (r.width < 10 || r.height < 10) continue;
+    targets.push({id,rect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom}});
+  }
+  return targets;
+}
+function addDragSample(session: DragSession, x:number, y:number, t:number): GesturePoint[] {
+  const kept = session.samples.filter(sample => t - sample.t < 200);
+  return [...kept,{x,y,t}].slice(-16);
+}
 function handleDragMove(event: PointerEvent) {
-  if (!dragging.value || dragging.value.pointerId !== event.pointerId) return;
-  dragging.value = {...dragging.value,x:event.clientX,y:event.clientY};
-  dragTarget.value = document.elementFromPoint(event.clientX,event.clientY)
-    ?.closest('[data-player-id]')?.getAttribute('data-player-id') || null;
+  const drag = dragging.value;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  const samples = addDragSample(drag,event.clientX,event.clientY,performance.now());
+  dragging.value = {...drag,x:event.clientX,y:event.clientY,samples};
+  const exclude = drag.kind === 'pile' ? [gameStore.playerId] : [];
+  dragTarget.value = resolveCardGesture(samples,seatTargets(),exclude).targetId;
+}
+function animateCardFlight(move: DragSession, seat: ThrowSeat, kind:'drop'|'flick', speed:number) {
+  clearFlight();
+  const {rect}=seat;
+  const toX=(rect.left+rect.right)/2;
+  const toY=(rect.top+rect.bottom)/2;
+  const duration=window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 :
+    kind === 'flick' ? Math.max(170,Math.min(340,330-speed*48)) : 260;
+  const dx=toX-move.x,dy=toY-move.y;
+  flying.value={
+    card:move.card,fromX:move.x,fromY:move.y,dx,dy,
+    angle:Math.max(-26,Math.min(26,dx*.065)),duration,
+    deckBefore:move.deckBefore,kind
+  };
+  flightTimer=setTimeout(clearFlight,duration+45);
 }
 function finishDrag(event: PointerEvent) {
-  if (!dragging.value || dragging.value.pointerId !== event.pointerId) return;
-  const move = dragging.value;
-  const target = document.elementFromPoint(event.clientX,event.clientY)
-    ?.closest('[data-player-id]')?.getAttribute('data-player-id');
-  const travel = Math.hypot(event.clientX-move.startX,event.clientY-move.startY);
-  dragging.value = null;
-  dragTarget.value = null;
-  if (travel < 24 || !target || !state.value?.players.some(p => p.id === target)) return;
-  if (move.kind === 'pile' && target === gameStore.playerId) return; // own pile cannot be transferred onto itself
+  const move=dragging.value;
+  if (!move || move.pointerId !== event.pointerId) return;
+  const samples=addDragSample(move,event.clientX,event.clientY,performance.now());
+  const exclude=move.kind === 'pile' ? [gameStore.playerId] : [];
+  const seats=seatTargets();
+  const result=resolveCardGesture(samples,seats,exclude);
+  const target=result.targetId;
+  dragging.value=null;
+  dragTarget.value=null;
+  if (!target) return; // Draw stays in the active-card zone; never drop randomly.
+  const seat=seats.find(s => s.id===target);
+  if (!seat || !state.value?.players.some(p => p.id === target && !p.hasExited)) return;
+  // The card follows the throw direction and physically arrives at its seat.
+  animateCardFlight({...move,x:event.clientX,y:event.clientY},seat,result.kind==='flick'?'flick':'drop',result.speed);
   if (move.kind === 'pile') gameStore.moveTopTo(target);
   else if (move.kind === 'active') gameStore.placeActiveCard(target);
   else if (state.value?.activeCard?.ownerId === gameStore.playerId) gameStore.placeActiveCard(target);
   else if (!state.value?.activeCard && state.value?.deck.length === move.deckBefore) {
-    // The server has not replied yet; bind the drop to this specific draw.
-    queuePendingDrop(target, move.deckBefore);
+    // A quick flick can finish before the WebSocket draw acknowledgement.
+    queuePendingDrop(target,move.deckBefore);
   }
-  // Otherwise the server already resolved the special card onto its
-  // owner's pile. No delayed target may apply to the NEXT draw.
+  // The server may have already placed a forced card (6♠ or deck's last).
+  // No other pending drop can ever affect the next draw.
   playSound('place');
   haptic();
 }
-function cancelDrag() { dragging.value = null; dragTarget.value = null; }
+function cancelDrag() { dragging.value=null; dragTarget.value=null; }
 window.addEventListener('pointermove',handleDragMove,{passive:true});
 window.addEventListener('pointerup',finishDrag);
 window.addEventListener('pointercancel',cancelDrag);
@@ -498,7 +571,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
               v-for="p in others.slice(0,3)" :key="p.id"
               :player="p" :is-me="false" :phase="state.phase"
               :underlaid-cards="state.underlaidCards !== false"
-              :is-turn="turnPlayer?.id === p.id" :recommended="isRecommendedTarget(p.id)"
+              :is-turn="turnPlayer?.id === p.id" :recommended="isRecommendedTarget(p.id)" :aimed="dragTarget === p.id" :flying-card-id="movingCardId"
               :incoming-card="state.trickTargetId === p.id ? state.currentTrick[state.currentTrick.length - 1] : null"
               :incoming-count="state.trickTargetId === p.id ? state.currentTrick.length : 0"
               :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
@@ -510,7 +583,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
             <div class="game-board__side game-board__side--left">
               <PlayerSeat v-if="others[3]" :key="others[3].id" :player="others[3]" :is-me="false"
                 :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
-                :is-turn="turnPlayer?.id === others[3].id" :recommended="isRecommendedTarget(others[3].id)"
+                :is-turn="turnPlayer?.id === others[3].id" :recommended="isRecommendedTarget(others[3].id)" :aimed="dragTarget === others[3].id" :flying-card-id="movingCardId"
                 :incoming-card="state.trickTargetId === others[3].id ? state.currentTrick[state.currentTrick.length - 1] : null"
                 :incoming-count="state.trickTargetId === others[3].id ? state.currentTrick.length : 0"
                 :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
@@ -532,7 +605,9 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                   :class="{ 'game-board__trump-mark--red': trumpIsRed }"
                   :aria-label="'Козырь: ' + state.trumpSuit" :title="'Козырь — ' + trumpSymbol">{{ trumpSymbol }}</span>
               </div>
-              <div v-if="state.activeCard" class="game-board__action-zone">
+              <div v-if="state.activeCard" class="game-board__action-zone"
+                :class="{ 'game-board__action-zone--in-flight':
+                  state.activeCard.ownerId === gameStore.playerId && !!(dragging || flying) }">
                 <div class="game-board__action-stack">
                   <button type="button"
                     class="game-board__active-card"
@@ -548,7 +623,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
             <div class="game-board__side game-board__side--right">
               <PlayerSeat v-if="others[4]" :key="others[4].id" :player="others[4]" :is-me="false"
                 :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
-                :is-turn="turnPlayer?.id === others[4].id" :recommended="isRecommendedTarget(others[4].id)"
+                :is-turn="turnPlayer?.id === others[4].id" :recommended="isRecommendedTarget(others[4].id)" :aimed="dragTarget === others[4].id" :flying-card-id="movingCardId"
                 :incoming-card="state.trickTargetId === others[4].id ? state.currentTrick[state.currentTrick.length - 1] : null"
                 :incoming-count="state.trickTargetId === others[4].id ? state.currentTrick.length : 0"
                 :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
@@ -561,7 +636,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
             <span v-if="state.discardPile.length" class="game-board__discard-count">Отбой · {{ state.discardPile.length }}</span>
           </div>
           <Transition name="draw-reveal">
-            <div v-if="gameStore.drawReveal" :key="gameStore.drawReveal.id"
+            <div v-if="gameStore.drawReveal && gameStore.drawReveal.playerId !== gameStore.playerId" :key="gameStore.drawReveal.id"
               class="game-board__reveal" role="status" aria-live="polite">
               <div class="game-board__reveal-stage">
                 <div class="game-board__flip-card">
@@ -575,7 +650,30 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
         </div>
 
         <div v-if="dragging" class="game-board__drag-card" :style="{left:dragging.x+'px',top:dragging.y+'px'}" aria-hidden="true">
-          <CardComponent :card="dragging.card || undefined" :hidden="!dragging.card" />
+          <div class="gesture-card" :class="{ 'gesture-card--face-up': !!dragging.card }">
+            <div class="gesture-card__inner">
+              <div class="gesture-card__side gesture-card__side--back"><CardComponent hidden /></div>
+              <div class="gesture-card__side gesture-card__side--front">
+                <CardComponent v-if="dragging.card" :card="dragging.card" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-if="flying" class="game-board__flight-card"
+          :class="'game-board__flight-card--'+flying.kind"
+          :style="{
+            left:flying.fromX+'px',top:flying.fromY+'px',
+            '--flight-dx':flying.dx+'px','--flight-dy':flying.dy+'px',
+            '--flight-angle':flying.angle+'deg','--flight-duration':flying.duration+'ms'
+          }" aria-hidden="true">
+          <div class="gesture-card" :class="{ 'gesture-card--face-up': !!flying.card }">
+            <div class="gesture-card__inner">
+              <div class="gesture-card__side gesture-card__side--back"><CardComponent hidden /></div>
+              <div class="gesture-card__side gesture-card__side--front">
+                <CardComponent v-if="flying.card" :card="flying.card" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <section class="game-hand" :class="{ 'game-hand--dealing': state.phase === 'DEALING' }">
@@ -592,7 +690,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
           </div>
           <PlayerSeat v-if="me" :player="me" :is-me="true" :is-turn="isMyTurn"
             :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
-            :selected-card-id="selectedCard?.id" :recommended="isRecommendedTarget(gameStore.playerId)"
+            :selected-card-id="selectedCard?.id" :recommended="isRecommendedTarget(gameStore.playerId)" :aimed="dragTarget === gameStore.playerId" :flying-card-id="movingCardId"
             :incoming-card="state.trickTargetId === gameStore.playerId ? state.currentTrick[state.currentTrick.length - 1] : null"
             :incoming-count="state.trickTargetId === gameStore.playerId ? state.currentTrick.length : 0"
             :targetable="!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId)"
