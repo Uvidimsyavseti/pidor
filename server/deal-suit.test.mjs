@@ -15,39 +15,40 @@ function gameWithTop(topA,topB,topC,card) {
   return game;
 }
 {
-  const game=gameWithTop(c('7','spades'),c('6','hearts'),c('8','clubs'),c('Q','clubs'));
-  assert.equal(game.canBeat(c('Q','clubs'),c('6','hearts')),false,'Wrong suit never eligible');
-  assert.equal(game.canBeat(c('Q','clubs'),c('8','clubs')),true,'Matching weaker suit is eligible');
-  assert.equal(game.placeActiveCard('a','c'),true,'Allowed to skip earlier player with wrong suit');
-  assert.deepEqual(game.accusableTargets('b'),[],'No foul for skipping incompatible suit');
-  assert.equal(game.state.players[2].stumps.at(-1)?.rank,'Q');
+  const game=gameWithTop(c('7','spades'),c('6','hearts'),c('8','clubs'),c('9','diamonds'));
+  assert.equal(game.canBeat(c('9','diamonds'),c('6','hearts')),false,'Ranks cannot be skipped');
+  assert.equal(game.canBeat(c('9','diamonds'),c('8','clubs')),true,'Next rank works regardless of suit');
+  assert.equal(game.placeActiveCard('a','c'),true);
+  assert.deepEqual(game.accusableTargets('b'),[],'No foul for correctly skipping wrong rank');
 }
 {
-  const game=gameWithTop(c('7','spades'),c('6','hearts'),c('8','clubs'),c('Q','clubs'));
-  assert.equal(game.placeActiveCard('a','b'),false,'Cannot place on incompatible suit even if lower rank');
-  assert.equal(game.state.activeCard?.card.rank,'Q','Rejected move does not consume card');
-}
-{
-  const game=gameWithTop(c('7','spades'),c('8','clubs'),c('6','clubs'),c('Q','clubs'));
-  assert.equal(game.placeActiveCard('a','b'),true,'First eligible matching suit is allowed');
-  assert.deepEqual(game.accusableTargets('b'),[],'Correct earliest suitable target is not penalized');
-}
-{
-  const game=gameWithTop(c('7','spades'),c('8','clubs'),c('6','clubs'),c('Q','clubs'));
-  assert.equal(game.placeActiveCard('a','c'),true,'Later matching target can be placed as a foul');
-  assert.deepEqual(game.accusableTargets('b'),['a'],'Passing the first eligible same-suit player is a real foul');
-  assert.equal(game.accuse('b','a')?.correct,true,'Manual accusation confirms violation');
+  const game=gameWithTop(c('7','spades'),c('6','hearts'),c('8','clubs'),c('9','diamonds'));
+  assert.equal(game.placeActiveCard('a','b'),true,'Cheating may put a card on an incorrect rank');
+  assert.deepEqual(game.accusableTargets('c'),['a'],'False placement is reportable');
+  assert.equal(game.accuse('c','a')?.correct,true);
   assert.equal(game.state.players[0].penalties,1);
 }
 {
-  const game=gameWithTop(c('7','spades'),c('6','hearts'),c('8','clubs'),c('Q','clubs'));
+  const game=gameWithTop(c('7','spades'),c('8','clubs'),c('8','hearts'),c('9','diamonds'));
+  assert.equal(game.placeActiveCard('a','b'),true,'First valid target along the circle');
+  assert.deepEqual(game.accusableTargets('c'),[]);
+}
+{
+  const game=gameWithTop(c('7','spades'),c('8','clubs'),c('8','hearts'),c('9','diamonds'));
+  assert.equal(game.placeActiveCard('a','c'),true,'Later valid target may be chosen as cheating');
+  assert.deepEqual(game.accusableTargets('b'),['a'],'Skipped player may report rule violation');
+}
+{
+  const game=gameWithTop(c('7','spades'),c('6','hearts'),c('8','clubs'),c('9','diamonds'));
   const next=nextBotMove(game,['a']);
   assert.equal(next?.type,'placeActiveCard');
-  assert.equal(next?.targetId,'c','Bot should skip wrong-suit neighbour');
+  assert.equal(next?.targetId,'c','Bot must skip wrong rank when choosing destination');
 }
 {
   const game=new PidorGame(players);
-  assert.equal(game.canBeat(c('6','clubs'),c('A','clubs')),true,'Six beats same-suit ace');
-  assert.equal(game.canBeat(c('6','clubs'),c('A','hearts')),false,'Six cannot beat ace of another suit');
+  assert.equal(game.canBeat(c('6','clubs'),c('A','spades')),true,'Non-spade six beats any ace in deal');
+  assert.equal(game.canBeat(c('6','spades'),c('A','spades')),false,'Spade six never beats an ace');
+  assert.equal(game.canBeat(c('Q','diamonds'),c('J','hearts')),true,'Suit irrelevant during deal');
+  assert.equal(game.canBeat(c('Q','diamonds'),c('10','hearts')),false,'Only consecutive rank allowed');
 }
-console.log('PASS: first compatible suit clockwise, wrong suit skipped, bot chooses compatible card, manual foul only when truly wrong');
+console.log('PASS: strict ranks ignoring suits, first eligible clockwise, reportable cheating, bot targeting, six exception');
