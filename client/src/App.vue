@@ -59,6 +59,15 @@ const animationLocked = ref(false);
 const deckRef = ref<HTMLElement | null>(null);
 const flightRef = ref<HTMLElement | null>(null);
 const flight = ref<Flight | null>(null);
+const flightOrigin = ref({ x: -200, y: -200 });
+const vfx = ref<{ id: number; x: number; y: number; kind: 'draw' | 'play' | 'penalty' } | null>(null);
+let vfxSerial = 0;
+function burst(kind: 'draw' | 'play' | 'penalty', x: number, y: number) {
+  if (reducedMotion) return;
+  const id = ++vfxSerial;
+  vfx.value = { id, x, y, kind };
+  setTimeout(() => { if (vfx.value?.id === id) vfx.value = null; }, 650);
+}
 const hiddenIds = ref<Set<string>>(new Set());
 const protectedIds = ref<Set<string>>(new Set());
 const activeFlightId = ref<string | null>(null);
@@ -319,11 +328,13 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
     ? document.querySelector('[data-seat-id="' + CSS.escape(targetId) + '"] .seat__cards')
     : document.querySelector('.table__active-anchor');
   const to = getCenter(target, { x: window.innerWidth / 2 - 42, y: window.innerHeight / 2 - 59 });
+  flightOrigin.value = from;
   flight.value = { card, hidden: true };
   await nextTick();
   const element = flightRef.value;
   if (!element) return;
-  const ms = reducedMotion ? 70 : 280;
+  element.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(.87)';
+  const ms = reducedMotion ? 70 : 340;
   const motion = element.animate([
     { transform: 'translate(' + from.x + 'px,' + from.y + 'px) scale(.87) rotate(-5deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
     { transform: 'translate(' + ((from.x + to.x) / 2) + 'px,' + ((from.y + to.y) / 2 - 30) + 'px) scale(1.09) rotate(2deg)', filter: 'drop-shadow(0 14px 10px #0008)', offset: .48 },
@@ -339,6 +350,7 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
     setTimeout(() => { if (flight.value?.card.id === card.id) flight.value = { card, hidden: false }; }, ms / 2);
   }
   try { await motion.finished; } catch { /* interrupted */ }
+  burst(targetId ? 'draw' : 'play', to.x + 42, to.y + 59);
   flight.value = null;
 }
 async function replayInitialDeal(cards: DealEvent[]) {
@@ -649,7 +661,8 @@ onBeforeUnmount(() => {
     <Transition name="toast">
       <div v-if="alertText" class="toast" role="status">{{ alertText }}</div>
     </Transition>
-    <div v-if="flight" ref="flightRef" class="card-flight">
+    <div v-if="vfx" :key="vfx.id" class="table-vfx" :class="'table-vfx--' + vfx.kind" :style="{ left: vfx.x + 'px', top: vfx.y + 'px' }"><i v-for="n in 8" :key="n" :style="{ '--spark-angle': (n * 45) + 'deg' }"></i></div>
+    <div v-if="flight" ref="flightRef" class="card-flight" :style="{ transform: `translate(${flightOrigin.x}px, ${flightOrigin.y}px) scale(.87)` }">
       <div class="card-flight__body"><CardComponent :card="flight.card" :hidden="flight.hidden" /></div>
     </div>
   </main>
