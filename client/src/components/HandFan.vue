@@ -3,8 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Card } from '@shared/types';
 import CardComponent from './CardComponent.vue';
 
-const props = withDefaults(defineProps<{ cards: Card[]; disabled?: boolean }>(), { disabled: false });
-const emit = defineEmits<{ play: [card: Card]; select: []; hover: [over: boolean] }>();
+const props = withDefaults(defineProps<{ cards: Card[]; disabled?: boolean; allowSeatDrop?: boolean }>(), { disabled: false, allowSeatDrop: false });
+const emit = defineEmits<{ play: [card: Card]; give: [card: Card, receiverId: string]; choose: [card: Card]; select: []; hover: [over: boolean] }>();
 const root = ref<HTMLElement | null>(null);
 const index = ref(-1);
 const pointerId = ref<number | null>(null);
@@ -33,7 +33,15 @@ function closest(clientX: number): number {
   const local = clientX - (bounds.left + bounds.width / 2);
   return Math.max(0, Math.min(props.cards.length - 1, Math.round(local / spread.value + (props.cards.length - 1) / 2)));
 }
+function seatAt(x: number, y: number): string | null {
+  for (const element of document.elementsFromPoint(x, y)) {
+    const seat = (element as HTMLElement).closest<HTMLElement>('[data-seat-id]');
+    if (seat?.dataset.seatId) return seat.dataset.seatId;
+  }
+  return null;
+}
 function hitTarget(x: number, y: number) {
+  if (props.allowSeatDrop) return Boolean(seatAt(x, y));
   const el = document.elementFromPoint(x, y) as HTMLElement | null;
   return Boolean(el?.closest('[data-drop-zone="trick"]'));
 }
@@ -65,20 +73,28 @@ function pointerMove(e: PointerEvent) {
 }
 function endPointer(e: PointerEvent) {
   if (pointerId.value !== e.pointerId) return;
-  const accepted = dragging.value && !props.disabled && hitTarget(e.clientX, e.clientY) && selected.value;
+  const recipient = props.allowSeatDrop ? seatAt(e.clientX, e.clientY) : null;
+  const accepted = dragging.value && !props.disabled && (props.allowSeatDrop ? Boolean(recipient) : hitTarget(e.clientX, e.clientY)) && selected.value;
+  const simpleTap = !dragging.value && props.allowSeatDrop && selected.value;
   pointerId.value = null;
   overTarget.value = false;
   emit('hover', false);
   if (accepted && selected.value) {
     inFlight.value = true;
-    const target = document.querySelector('.table__trick')?.getBoundingClientRect();
+    const target = (recipient
+      ? document.querySelector('[data-seat-id="' + CSS.escape(recipient) + '"] .seat__cards')
+      : document.querySelector('.table__trick'))?.getBoundingClientRect();
     if (target) {
       snapping.value = true;
       pos.value = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
     }
-    emit('play', selected.value);
+    if (props.allowSeatDrop && recipient) emit('give', selected.value, recipient);
+    else emit('play', selected.value);
     clearTimeout(releaseTimer);
     releaseTimer = setTimeout(reset, 450);
+  } else if (simpleTap && selected.value) {
+    emit('choose', selected.value);
+    reset();
   } else if (dragging.value) {
     const card = root.value?.querySelectorAll<HTMLElement>('.hand-fan__slot')[index.value];
     const bounds = card?.getBoundingClientRect();
