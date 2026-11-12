@@ -285,8 +285,14 @@ export class PidorGame {
 
   moveTopTo(actorId: string, targetId: string): boolean {
     if (!this.canMoveTopCard(actorId) || this.state.activeCard) return false;
-    const top = this.state.players.find(p => p.id === actorId)!.stumps.at(-1)!;
-    return this.takeFromPile(actorId, top.id) && this.placeActiveCard(actorId, targetId);
+    const actor = this.state.players.find(p => p.id === actorId)!;
+    const top = actor.stumps.at(-1)!;
+    if (!this.state.players.some(p => p.id === targetId)) return false;
+    if (!this.takeFromPile(actorId, top.id)) return false;
+    if (this.placeActiveCard(actorId, targetId)) return true;
+    actor.stumps.push(top);
+    this.state.activeCard = null;
+    return false;
   }
 
   drawTo(actorId: string, targetId: string): boolean {
@@ -329,7 +335,7 @@ export class PidorGame {
 
   private findOtherBeatTarget(actorIdx: number): number {
     const p = this.state.players[actorIdx];
-    if (p.stumps.length <= 3) return -1;
+    if (p.stumps.length <= 1) return -1;
     const top = p.stumps[p.stumps.length - 1];
     for (let i = 1; i < this.state.players.length; i++) {
       const idx = (actorIdx + i) % this.state.players.length;
