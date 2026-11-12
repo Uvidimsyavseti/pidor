@@ -152,6 +152,8 @@ export const useGameStore = defineStore('game', {
     accusePlayer(accusedId: string) { this.send('accusePlayer', { accusedId }); },
     finishReview() { this.send('finishReview'); },
     drawCardFromDeck() { this.send('drawCardFromDeck'); },
+    drawTo(targetPlayerId: string) { this.send('drawTo', { targetPlayerId }); },
+    moveTopTo(targetPlayerId: string) { this.send('moveTopTo', { targetPlayerId }); },
     takeFromPile(cardId: string) { this.send('takeFromPile', { cardId }); },
     placeActiveCard(targetPlayerId: string) { this.send('placeActiveCard', { targetPlayerId }); },
     givePenaltyCard(cardId: string, receiverId: string) { this.send('givePenaltyCard', { cardId, receiverId }); },
