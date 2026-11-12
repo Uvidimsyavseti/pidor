@@ -251,8 +251,8 @@ function deckPoint() {
     x: window.innerWidth / 2 - 42, y: window.innerHeight / 2 - 59,
   });
 }
-async function flyCard(card: Card, targetId: string | null, faceUp: boolean) {
-  const from = deckPoint();
+async function flyCard(card: Card, targetId: string | null, faceUp: boolean, originSeatId?: string) {
+  const from = originSeatId ? getCenter(document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .seat__cards'), deckPoint()) : deckPoint();
   const target = targetId
     ? document.querySelector('[data-seat-id="' + CSS.escape(targetId) + '"] .seat__cards')
     : document.querySelector('.table__active-anchor');
@@ -315,7 +315,7 @@ watch(state, (value, old) => {
   }
   if (value.activeCard?.card.id && value.activeCard.card.id !== old?.activeCard?.card.id) {
     activeFlightId.value = value.activeCard.card.id;
-    void flyCard(value.activeCard.card, null, true).finally(() => {
+    void flyCard(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
       activeFlightId.value = null;
     });
   }
@@ -323,6 +323,25 @@ watch(state, (value, old) => {
   if (pending.value && old?.activeCard?.card.id !== value.activeCard?.card.id) pending.value = null;
   if (pending.value && value.phase !== old?.phase) pending.value = null;
 }, { flush: 'sync' });
+
+watch(() => game.lastReveal, event => {
+  if (!event || currentPhase.value !== 'DEALING') return;
+  // A special drawn card may land directly on the player's pile without activeCard.
+  // Delay until the authoritative state update arrives before deciding its destination.
+  setTimeout(() => {
+    const snapshot = state.value;
+    if (!snapshot || snapshot.phase !== 'DEALING' || snapshot.activeCard?.card.id === event.card.id) return;
+    const target = event.targetPlayerId || event.playerId;
+    const pile = snapshot.players.find(p => p.id === target)?.stumps || [];
+    if (!pile.some(card => card.id === event.card.id)) return;
+    hiddenIds.value = new Set([...hiddenIds.value, event.card.id]);
+    void flyCard(event.card, target, true).finally(() => {
+      const next = new Set(hiddenIds.value);
+      next.delete(event.card.id);
+      hiddenIds.value = next;
+    });
+  }, 35);
+});
 
 watch(() => game.lastError, message => {
   if (message) { showToast(message); pending.value = null; }
