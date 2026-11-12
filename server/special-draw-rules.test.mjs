@@ -142,7 +142,7 @@ try {
   assert.equal(finalSpade.isLegalMove(c('K','clubs'),c('7','clubs')),true,'Only same suit can beat');
   assert.equal(finalSpade.isLegalMove(c('6','clubs'),c('A','clubs')),true,'6 beats suited A');
   assert.equal(finalSpade.isLegalMove(c('6','hearts'),c('A','clubs')),false,'6 must share ace suit');
-  assert.equal(finalSpade.isLegalMove(c('6','spades'),c('A','spades')),true,'Spade 6 beats spade A');
+  assert.equal(finalSpade.isLegalMove(c('6','spades'),c('A','spades')),false,'Spade 6 cannot beat spade A');
   finalSpade.state.trumpSuit='hearts';
   assert.equal(finalSpade.isLegalMove(c('6','hearts'),c('A','hearts')),true,'Trump-suit 6 beats trump ace');
   assert.equal(finalSpade.isLegalMove(c('K','clubs'),c('8','spades')),false,'Spade only beaten by spade');
