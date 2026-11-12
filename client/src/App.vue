@@ -75,6 +75,10 @@ const deckGestureId = ref<number | null>(null);
 const deckGestureHeld = ref(false);
 const activeDragging = ref(false);
 const dragPoint = ref({ x: 0, y: 0 });
+const dragLocal = computed(() => {
+  const rect = document.querySelector('.table')?.getBoundingClientRect();
+  return { x: dragPoint.value.x - (rect?.left || 0), y: dragPoint.value.y - (rect?.top || 0) };
+});
 const dragTarget = ref<string | null>(null);
 const fanHover = ref(false);
 const pending = ref<string | null>(null);
@@ -661,7 +665,7 @@ onBeforeUnmount(() => {
         <div class="table__active-anchor"></div>
         <div v-if="active && activeFlightId !== active.card.id"
           class="table__active" :class="{ 'table__active--drag': activeDragging, 'table__active--dealing': state.phase === 'DEALING' }"
-          :style="activeDragging ? { '--drag-x': dragPoint.x + 'px', '--drag-y': dragPoint.y + 'px' } : {}"
+          :style="activeDragging ? { '--drag-x': dragLocal.x + 'px', '--drag-y': dragLocal.y + 'px' } : {}"
           @pointerdown="onActiveDown"
         >
           <CardComponent :card="active.card" />
