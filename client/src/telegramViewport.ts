@@ -1,5 +1,7 @@
 type Insets = { top?: number; bottom?: number; left?: number; right?: number };
 type MiniApp = {
+  initData?: string;
+  initDataUnsafe?: { user?: { first_name?: string; username?: string } };
   ready?: () => void;
   expand?: () => void;
   requestFullscreen?: () => void;
