@@ -482,13 +482,13 @@
   }
   34% {
     transform:translate(-50%,-50%)
-      translate(calc(var(--flight-dx) * .38),calc(var(--flight-dy) * .38 - 16px))
-      rotate(calc(var(--flight-angle) * .55)) scale(1.1);
+      translate(var(--flight-dx38),calc(var(--flight-dy38) - 16px))
+      rotate(var(--flight-angle55)) scale(1.1);
     opacity:1;
   }
   85% {
     transform:translate(-50%,-50%)
-      translate(calc(var(--flight-dx) * .9),calc(var(--flight-dy) * .9 - 3px))
+      translate(var(--flight-dx90),calc(var(--flight-dy90) - 3px))
       rotate(var(--flight-angle)) scale(.96);
     opacity:1;
   }
