@@ -210,6 +210,21 @@ const myPenaltyTurn = computed(() => state.value?.pendingPenaltyTurn?.giverId ==
 const penaltyTargets = computed(() => myPenaltyTurn.value ? others.value.filter(p => p.id === state.value?.pendingPenaltyTurn?.receiverId) : []);
 const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null && penaltyTargets.value.length > 0);
 const loser = computed(() => state.value?.players.find(p => !p.hasExited));
+function canTargetSeat(playerId:string): boolean {
+  if (!state.value) return false;
+  const target=state.value.players.find(p=>p.id===playerId);
+  if (!target || target.hasExited) return false;
+  if (penaltyTargeting.value) return penaltyTargets.value.some(p=>p.id===playerId);
+  if (state.value.phase==='MAIN_GAME') {
+    return dragging.value?.kind==='hand' && dragging.value.handLifted===true &&
+      mainNextTargetId.value===playerId;
+  }
+  if (state.value.phase==='DEALING') {
+    return Boolean(dragging.value) || state.value.activeCard?.ownerId===gameStore.playerId;
+  }
+  return false;
+}
+
 
 function haptic() { tg?.HapticFeedback?.impactOccurred?.('light'); }
 function joinFromHome(payload: { name: string; room: string; mode: 'friends' | 'bot'; botCount: number; underlaidCards: boolean }) {
@@ -676,8 +691,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
               :is-turn="turnPlayer?.id === p.id" :recommended="isRecommendedTarget(p.id)" :aimed="dragTarget === p.id" :flying-card-id="movingCardId"
               :incoming-card="state.trickTargetId === p.id ? state.currentTrick[state.currentTrick.length - 1] : null"
               :incoming-count="state.trickTargetId === p.id ? state.currentTrick.length : 0"
-              :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
-                (penaltyTargeting && penaltyTargets.some(t => t.id === p.id))) && !p.hasExited"
+              :targetable="canTargetSeat(p.id)"
               @click="handleSeatClick(p.id)" @card-click="handleCardClick"
             />
           </div>
@@ -688,8 +702,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                 :is-turn="turnPlayer?.id === others[3].id" :recommended="isRecommendedTarget(others[3].id)" :aimed="dragTarget === others[3].id" :flying-card-id="movingCardId"
                 :incoming-card="state.trickTargetId === others[3].id ? state.currentTrick[state.currentTrick.length - 1] : null"
                 :incoming-count="state.trickTargetId === others[3].id ? state.currentTrick.length : 0"
-                :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
-                  (penaltyTargeting && penaltyTargets.some(t => t.id === others[3]?.id))) && !others[3].hasExited"
+                :targetable="canTargetSeat(others[3].id)"
                 @click="handleSeatClick(others[3].id)" @card-click="handleCardClick"
               />
             </div>
@@ -728,8 +741,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                 :is-turn="turnPlayer?.id === others[4].id" :recommended="isRecommendedTarget(others[4].id)" :aimed="dragTarget === others[4].id" :flying-card-id="movingCardId"
                 :incoming-card="state.trickTargetId === others[4].id ? state.currentTrick[state.currentTrick.length - 1] : null"
                 :incoming-count="state.trickTargetId === others[4].id ? state.currentTrick.length : 0"
-                :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
-                  (penaltyTargeting && penaltyTargets.some(t => t.id === others[4]?.id))) && !others[4].hasExited"
+                :targetable="canTargetSeat(others[4].id)"
                 @click="handleSeatClick(others[4].id)" @card-click="handleCardClick"
               />
             </div>
@@ -787,7 +799,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
             :selected-card-id="selectedCard?.id" :recommended="isRecommendedTarget(gameStore.playerId)" :aimed="dragTarget === gameStore.playerId" :flying-card-id="movingCardId"
             :incoming-card="state.trickTargetId === gameStore.playerId ? state.currentTrick[state.currentTrick.length - 1] : null"
             :incoming-count="state.trickTargetId === gameStore.playerId ? state.currentTrick.length : 0"
-            :targetable="!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId)"
+            :targetable="canTargetSeat(gameStore.playerId)"
             :preview-card-id="handPreviewCardId"
             @click="handleSeatClick(gameStore.playerId)" @drag-start="beginDrag($event, 'pile')"
             @hand-drag-start="beginHandDrag"
