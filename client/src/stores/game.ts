@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { Card, CardDrawReveal, GameState, TableListing } from '@shared/types';
+import type { CardDrawReveal, GameState, TableListing } from '@shared/types';
 
 type GameMessage = { type: string; data: unknown };
 type JoinOptions = { mode?: 'friends' | 'bot'; botCount?: number; underlaidCards?: boolean };
