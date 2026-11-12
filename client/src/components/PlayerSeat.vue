@@ -12,6 +12,8 @@ const props = defineProps<{
   selectedCardId?: string | null;
   targetable?: boolean;
   recommended?: boolean;
+  incomingCard?: Card | null;
+  incomingCount?: number;
 }>();
 const emit = defineEmits<{
   cardClick: [payload: { card: Card; ownerId: string }];
@@ -68,7 +70,6 @@ function selectCard(card: Card) {
 
     <template v-if="!isMe">
       <div class="seat__opponent-cards">
-        <span v-if="player.hand.length" class="seat__hand-badge" :aria-label="player.hand.length + ' карт на руке'">🂠 {{ player.hand.length }}</span>
         <div v-if="player.stumps.length" class="seat__pile">
           <CardComponent :key="player.stumps[player.stumps.length - 1]?.id"
             :card="['DEALING','PENALTY_REVIEW'].includes(phase) && player.stumps.length >= (underlaidCards === false ? 1 : 3) ? player.stumps[player.stumps.length - 1] : undefined"
@@ -77,7 +78,10 @@ function selectCard(card: Card) {
           />
           <span class="seat__pile-count">{{ player.stumps.length }}</span>
         </div>
-        <div v-else class="seat__pile-empty" aria-label="Пустая стопка">+</div>
+        <div v-else-if="player.hand.length" class="seat__pile seat__pile--hand" :aria-label="player.hand.length + ' карт в руке'">
+          <CardComponent hidden small />
+          <span class="seat__pile-count">{{ player.hand.length }}</span>
+        </div>
       </div>
     </template>
 
@@ -114,7 +118,7 @@ function selectCard(card: Card) {
             </div>
             <span class="seat__stack-count">{{ player.stumps.length }}</span>
           </div>
-          <div v-else class="seat__empty-pile" aria-label="Пустая стопка">+</div>
+          <div v-else class="seat__empty-pile" aria-label="Пустая стопка"></div>
         </div>
 
         <div v-else class="seat__play-area" :class="{ 'seat__play-area--no-reserve': !player.stumps.length }">
@@ -146,6 +150,12 @@ function selectCard(card: Card) {
         </div>
       </div>
     </template>
+    <div v-if="incomingCard && phase === 'MAIN_GAME'" class="seat__incoming-card"
+      :class="{ 'seat__incoming-card--mine': isMe }"
+      :title="'Карта перед игроком ' + player.name" aria-label="Карта перед этим игроком">
+      <CardComponent :card="incomingCard" small />
+      <span v-if="incomingCount && incomingCount > 1" class="seat__incoming-count">{{ incomingCount }}</span>
+    </div>
   </section>
 </template>
 
@@ -276,4 +286,67 @@ function selectCard(card: Card) {
 @keyframes turn-glow{50%{box-shadow:0 0 11px #e8bc83a0}}
 @keyframes card-arrival{from{opacity:.6;transform:translateY(-14px) scale(1.07);}to{opacity:1;transform:translateY(0) scale(1);}}
 @media(prefers-reduced-motion:reduce){.seat__turn,.seat__stack-layer--top,.seat__pile :deep(.playing-card){animation:none;}.seat__hand-card{transition:none;}}
+
+/* Cards are the seats; names and penalties are just small labels beside them.
+   No cards-in-boxes, placeholder slots or ornate player frames. */
+.seat--opponent,.seat--opponent.seat--turn,.seat--opponent.seat--target,.seat--opponent.seat--recommended {
+  display:flex;flex-direction:row;justify-content:center;align-items:center;gap:5px;
+  padding:3px 2px;background:transparent;border:0;border-radius:0;
+  box-shadow:none;outline:0;overflow:visible;
+}
+.seat--opponent .seat__opponent-cards {flex:0 0 auto;order:0;gap:0;overflow:visible;}
+.seat--opponent .seat__identity {
+  flex:1;order:1;min-width:0;align-self:center;display:flex;
+  flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;
+}
+.seat--opponent .seat__info{max-width:100%;overflow:hidden;}
+.seat--opponent .seat__name{font-size:clamp(9px,2.6vw,12px);text-shadow:0 1px 5px #061b0e;}
+.seat--opponent .seat__penalties {
+  margin:0;padding:0;border:0;background:transparent;
+  color:#e6c18c;font-size:10px;min-width:0;justify-content:flex-start;
+}
+.seat--opponent .seat__penalties span{color:#b88456;}
+.seat--opponent .seat__pile{min-width:0;height:auto;min-height:0;}
+.seat--opponent .seat__pile :deep(.playing-card){--width:clamp(31px,9vw,56px)!important;}
+.seat--opponent .seat__pile-count{top:0;right:-7px;width:17px;height:17px;font-size:9px;}
+.seat--opponent .seat__turn{
+  position:absolute;left:50%;top:-9px;transform:translateX(-50%);
+  padding:1px 6px;border-radius:10px;font-size:8px;z-index:3;
+}
+.seat--opponent.seat--target .seat__pile :deep(.playing-card){
+  outline:2px solid #97c89e;outline-offset:3px;border-radius:6px;
+  box-shadow:0 0 14px #d8ce7470;
+}
+.seat--opponent.seat--recommended .seat__pile :deep(.playing-card){
+  outline:3px solid #f6d08b;outline-offset:3px;border-radius:6px;
+  box-shadow:0 0 21px #f4c77783;
+}
+.seat__pile-empty,.seat__empty-pile {display:none;}
+.seat__incoming-card{
+  pointer-events:none;position:absolute;z-index:11;
+  top:calc(100% - 10px);left:30%;
+  transform:translateX(-50%) rotate(-9deg);
+  animation:incoming-card-arrival .34s ease-out;
+  filter:drop-shadow(0 5px 7px #00160d8f);
+}
+.seat__incoming-card :deep(.playing-card){--width:clamp(33px,7vw,62px)!important;}
+.seat__incoming-card--mine{top:-57px;left:50%;transform:translateX(-50%) rotate(6deg);}
+.seat__incoming-count{
+  position:absolute;right:-9px;top:-5px;border:1px solid #e9cc90;
+  background:#254938;color:#f5dfad;min-width:16px;height:17px;
+  border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:900;
+}
+@keyframes incoming-card-arrival{
+  from{opacity:0;translate:0 -23px;scale:.82;}
+  to{opacity:1;translate:0 0;scale:1;}
+}
+@media(max-width:430px){
+ .seat--opponent{gap:4px!important;}
+ .seat--opponent .seat__name{font-size:clamp(8px,2.7vw,10px)!important;}
+ .seat--opponent .seat__pile :deep(.playing-card){--width:clamp(30px,9vw,41px)!important;}
+ .seat__incoming-card :deep(.playing-card){--width:32px!important;}
+ .seat__incoming-card--mine :deep(.playing-card){--width:43px!important;}
+}
+@media(prefers-reduced-motion:reduce){.seat__incoming-card{animation:none;}}
+
 </style>
