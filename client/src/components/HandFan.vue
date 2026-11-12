@@ -4,7 +4,7 @@ import type { Card } from '@shared/types';
 import CardComponent from './CardComponent.vue';
 
 const props = withDefaults(defineProps<{ cards: Card[]; disabled?: boolean }>(), { disabled: false });
-const emit = defineEmits<{ play: [card: Card]; select: [] }>();
+const emit = defineEmits<{ play: [card: Card]; select: []; hover: [over: boolean] }>();
 const root = ref<HTMLElement | null>(null);
 const index = ref(-1);
 const pointerId = ref<number | null>(null);
@@ -57,7 +57,10 @@ function pointerMove(e: PointerEvent) {
     if (startY.value - e.clientY > 30) dragging.value = true;
     else if (Math.abs(startY.value - e.clientY) < 24) index.value = closest(e.clientX);
   }
-  if (dragging.value) overTarget.value = hitTarget(e.clientX, e.clientY);
+  if (dragging.value) {
+    const over = hitTarget(e.clientX, e.clientY);
+    if (overTarget.value !== over) { overTarget.value = over; emit('hover', over); }
+  }
   e.preventDefault();
 }
 function endPointer(e: PointerEvent) {
@@ -65,6 +68,7 @@ function endPointer(e: PointerEvent) {
   const accepted = dragging.value && !props.disabled && hitTarget(e.clientX, e.clientY) && selected.value;
   pointerId.value = null;
   overTarget.value = false;
+  emit('hover', false);
   if (accepted && selected.value) {
     inFlight.value = true;
     const target = document.querySelector('.table__trick')?.getBoundingClientRect();
@@ -92,6 +96,7 @@ function reset() {
   dragging.value = false;
   snapping.value = false;
   overTarget.value = false;
+  emit('hover', false);
   inFlight.value = false;
   index.value = -1;
 }
