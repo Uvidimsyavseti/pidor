@@ -5,6 +5,7 @@ import './underlaid-mode.test.mjs';
 import './special-draw-rules.test.mjs';
 import './accusation-window.test.mjs';
 import './penalty-ui-draw.test.mjs';
+import './clockwise-trick.test.mjs';
 import { PidorGame } from './gameLogic.ts';
 import { applyBotMove, nextBotMove } from './botStrategy.ts';
 
