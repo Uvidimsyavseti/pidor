@@ -89,19 +89,6 @@ const riskyDraw = computed(() => state.value?.phase === 'DEALING' && !isMyTurn.v
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 const targeting = computed(() => state.value?.phase === 'DEALING' && state.value?.activeCard?.ownerId === gameStore.playerId);
-const dealtRank: Record<string, number> = { '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, J: 11, Q: 12, K: 13, A: 14 };
-const dealTargets = computed(() => {
-  if (!targeting.value || !state.value?.activeCard) return [];
-  const card = state.value.activeCard.card;
-  const seatOrder = [...others.value, ...(me.value ? [me.value] : [])];
-  return seatOrder.filter(player => {
-    if (player.id === gameStore.playerId) return true;
-    const top = player.stumps[player.stumps.length - 1];
-    if (!top || top.suit !== card.suit) return false;
-    return (card.rank === '6' && top.rank === 'A') ||
-      (dealtRank[card.rank] ?? 0) > (dealtRank[top.rank] ?? 0);
-  });
-});
 const myPenaltyTurn = computed(() => state.value?.pendingPenaltyTurn?.giverId === gameStore.playerId);
 const penaltyTargets = computed(() => myPenaltyTurn.value ? others.value.filter(p => p.id === state.value?.pendingPenaltyTurn?.receiverId) : []);
 const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null && penaltyTargets.value.length > 0);
@@ -183,7 +170,7 @@ function readyReview() {
 function beginDrag(event: PointerEvent, kind: 'deck' | 'pile') {
   if (state.value?.phase !== 'DEALING' || state.value.activeCard) return;
   if (kind === 'deck' && !canDraw.value) return;
-  if (kind === 'pile' && (!isMyTurn.value || !me.value || me.value.stumps.length < 2)) return;
+  if (kind === 'pile' && (!isMyTurn.value || !me.value || me.value.stumps.length <= (state.value.underlaidCards === false ? 0 : 3))) return;
   event.preventDefault();
   dragging.value = {kind, pointerId:event.pointerId, x:event.clientX,
     y:event.clientY, startX:event.clientX, startY:event.clientY,
@@ -401,7 +388,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
           </div>
           <button type="button" :disabled="!!me?.isReady" @click="readyReview">{{ me?.isReady ? 'ОЖИДАЕМ ОСТАЛЬНЫХ…' : 'ЗАКОНЧИТЬ РАЗБОР' }}</button>
         </div>
-        <div v-if="state.phase === 'DEALING'" class="drawer-banner" :class="{ 'drawer-banner--mine': isMyTurn }">
+        <div v-if="false && state.phase === 'DEALING'" class="drawer-banner" :class="{ 'drawer-banner--mine': isMyTurn }">
           <div class="drawer-banner__label">КТО ТЯНЕТ СЕЙЧАС</div>
           <div class="drawer-banner__name"><span class="drawer-banner__avatar">{{ turnPlayer?.name?.charAt(0).toUpperCase() }}</span><strong>{{ turnPlayer?.name }}</strong></div>
           <div class="drawer-banner__badge">{{ isMyTurn ? 'ТВОЙ ХОД' : 'ИДЁТ ХОД СОПЕРНИКА' }}</div>
@@ -414,10 +401,6 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
         </Transition>
         <div class="table-surface" :class="{ 'table-surface--my-turn': isMyTurn && state.phase !== 'ENDED' }">
           <div class="table-surface__ring" aria-hidden="true"></div>
-          <div class="table-ornament table-ornament--tl" aria-hidden="true"></div>
-          <div class="table-ornament table-ornament--tr" aria-hidden="true"></div>
-          <div class="table-ornament table-ornament--bl" aria-hidden="true"></div>
-          <div class="table-ornament table-ornament--br" aria-hidden="true"></div>
           <div class="opponents" :class="'opponents--' + others.length">
             <PlayerSeat
               v-for="p in others" :key="p.id"
@@ -483,16 +466,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
               </div>
             </div>
 
-            <div v-if="false" class="target-actions">
-              <span>КУДА ПОЛОЖИТЬ КАРТУ?</span>
-              <div class="target-actions__buttons">
-                <button v-for="p in dealTargets" :key="p.id" type="button" @click="handleSeatClick(p.id)">
-                  {{ p.id === gameStore.playerId ? 'СЕБЕ' : p.name }}
-                  <small v-if="p.id !== gameStore.playerId && p.id === dealTargets.find(x => x.id !== gameStore.playerId)?.id">· ПО КРУГУ</small>
-                </button>
-              </div>
-            </div>
-            <div v-else-if="penaltyTargeting" class="target-actions">
+            <div v-if="penaltyTargeting" class="target-actions">
               <span>КОМУ ПЕРЕДАТЬ КАРТУ?</span>
               <div class="target-actions__buttons">
                 <button v-for="p in penaltyTargets" :key="p.id" type="button" @click="handleSeatClick(p.id)">{{ p.name }} · {{ state.pendingPenaltyDebts?.[p.id]?.[gameStore.playerId] }}</button>
@@ -1290,4 +1264,161 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
  .site-header--game .brand{font-size:16px;}
  .site-header--game .callout-button{font-size:8px!important;padding:4px 5px!important;}
 }
+
+/* ━━━━━━━━━━ PIDOR TABLE — refined walnut & felt ━━━━━━━━━━
+   One warm material hierarchy. No floral overlays, competing frames,
+   or decorative panels over the playable cards. */
+.app-shell {
+  background:
+    radial-gradient(ellipse 80% 70% at 50% -12%,rgba(180,124,66,.12),transparent 70%),
+    linear-gradient(155deg,#221c17 0%,#181c18 47%,#141a16 100%) !important;
+  color:#eee4d2;
+}
+.ambient { opacity:.25; pointer-events:none; }
+.site-header--game {
+  background:rgba(27,32,26,.91);
+  border-bottom:1px solid rgba(193,162,110,.28);
+  box-shadow:none;
+  backdrop-filter:blur(14px);
+}
+.site-header--game .brand { font-family:Georgia,serif;letter-spacing:.03em;color:#f7e8d2; }
+.site-header--game .brand__mark { background:#af8554;color:#191b15;box-shadow:none; }
+.game-layout {
+  width:min(1440px,100%);
+  margin:0 auto;
+  padding:12px clamp(8px,1.4vw,24px) 20px;
+  gap:13px;
+}
+.game-status {
+  min-height:44px;
+  border:1px solid rgba(200,178,139,.2);
+  border-radius:12px;
+  background:rgba(20,32,25,.72);
+  padding:8px 14px;
+  color:#dfd3b9;
+  gap:12px;
+  box-shadow:none;
+}
+.game-status__phase { font-size:12px;letter-spacing:.08em; color:#edc88c;font-weight:900; }
+.game-status p { max-width:510px;opacity:.76;font-size:11px;line-height:1.3; }
+.phase-symbol {color:#cfaa72;}
+.your-turn,.whose-turn {border:1px solid rgba(224,191,125,.38);background:#32523c;color:#f6e6c4;border-radius:50px;padding:6px 12px;letter-spacing:.05em;}
+.table-surface {
+  min-height:542px;
+  border:11px solid #785035;
+  border-radius:clamp(30px,5vw,65px);
+  background:
+    radial-gradient(ellipse at 52% 42%,rgba(93,137,90,.33),transparent 67%),
+    radial-gradient(ellipse at 50% 38%,#25533c 0%,#1a4331 68%,#123525 100%) padding-box !important;
+  box-shadow:0 0 0 1px #c19a66,0 6px 0 #422d1d,0 18px 42px rgba(0,0,0,.48),inset 0 0 45px rgba(3,19,10,.3);
+  isolation:isolate;
+}
+.table-surface::before {
+  content:"";position:absolute;inset:10px;z-index:0;pointer-events:none;
+  border:1px solid rgba(232,210,159,.34);
+  border-radius:clamp(22px,4.7vw,57px);
+  box-shadow:0 0 0 5px rgba(7,20,12,.07);
+}
+.table-surface::after {display:none;}
+.table-surface__ring {inset:24px;border:1px solid rgba(230,214,176,.16);border-radius:clamp(15px,4vw,50px);}
+.table-center { min-height:520px; padding:128px 19% 40px; }
+.table-center__label {
+  top:115px; font:700 15px Georgia,serif;letter-spacing:.26em;
+  color:rgba(243,225,182,.44);opacity:1;text-shadow:0 1px 3px #0b2214;
+}
+.table-center__label::before,.table-center__label::after {display:none;}
+.table-center__cards {grid-template-columns:minmax(70px,1fr) minmax(110px,1.22fr) minmax(70px,1fr);gap:10px;max-width:570px;}
+.table-center__slot {gap:4px;}
+.table-center__slot--trick {
+  min-height:101px; padding:8px 5px;
+  border:1px dashed rgba(231,210,163,.42);
+  border-radius:16px;background:rgba(12,45,28,.12);
+  box-shadow:none;
+}
+.table-center__slot--trick::before,.table-center__slot--trick::after {display:none;}
+.table-center__slot--trump {
+  min-height:152px;padding:10px 5px;
+  border:1px solid rgba(220,187,126,.28);
+  border-radius:13px;
+  background:rgba(7,27,18,.33);
+  box-shadow:none;
+}
+.trump-display strong { font-size:67px; }
+.trump-display__star {display:none;}
+.slot-heading {color:#d5bd8c;font-size:10px;letter-spacing:.11em;font-weight:700;}
+.slot-count {color:#bed1ba;font-size:10px;}
+.deck-button--available,.table-center__slot--deck .deck-button {
+  transition:transform .2s ease,filter .2s ease;
+  animation:none;filter:drop-shadow(0 10px 11px rgba(0,0,0,.42));
+}
+.deck-button--available:hover {transform:translateY(-6px) rotate(-2deg);filter:drop-shadow(0 16px 15px rgba(0,0,0,.52));}
+.deck-button--available:active {transform:translateY(-1px) scale(.98);}
+.deck-swipe-hint {background:rgba(11,36,24,.69);border-radius:15px;padding:5px 6px;font-size:9px;color:#edc686;white-space:nowrap;}
+.table-surface > .opponents > .seat:nth-child(1) {top:17px;}
+.table-surface > .opponents > .seat:nth-child(2) {top:17px;}
+.table-surface > .opponents > .seat:nth-child(3) {top:17px;}
+.table-surface > .opponents > .seat:nth-child(4),.table-surface > .opponents > .seat:nth-child(5) {top:51%;}
+.player-dock {
+  width:min(1250px,100%);
+  background:rgba(23,42,31,.94);
+  border:1px solid rgba(191,154,97,.43);
+  border-radius:19px;
+  outline:0;
+  box-shadow:0 10px 26px rgba(0,0,0,.25),inset 0 1px rgba(255,245,214,.07);
+  padding:10px 15px;
+}
+.player-dock::before {display:none;}
+.player-dock__actions {padding:3px 4px 9px;min-height:37px;}
+.action-hint {font-size:11px;color:#d8c6a4;}
+.action-button,.main-button {
+  border-radius:10px;
+  background:#dbb47a;
+  border:1px solid #eed2a6;
+  color:#24251b;
+  box-shadow:inset 0 1px #fff6d9a6,0 3px 10px #0004;
+  transition:transform .16s ease,background .16s ease,box-shadow .16s ease;
+}
+.action-button:hover,.main-button:hover {transform:translateY(-2px);background:#edcc99;box-shadow:0 7px 16px #0004;}
+.action-button:active,.main-button:active {transform:translateY(1px) scale(.99);}
+.draw-activity {top:75px;background:rgba(22,38,26,.95);border-color:#bea077;z-index:20;pointer-events:none;box-shadow:0 4px 19px #0007;}
+@media(max-width:850px) {
+ .table-surface {min-height:490px;border-width:9px;}
+ .table-center {min-height:470px;padding:124px 16% 38px;}
+ .table-center__cards {max-width:500px;}
+ .table-center__label{top:119px;}
+}
+@media(max-width:680px) and (orientation:portrait) {
+ .game-layout {padding:7px 0 20px;gap:8px;}
+ .game-status {min-height:36px;padding:6px 10px;gap:5px;}
+ .game-status p {display:none;}
+ .game-status__phase {font-size:10px;}
+ .table-surface {min-height:435px;border:7px solid #795037;border-radius:26px;box-shadow:0 0 0 1px #c19a66,0 4px 0 #40291b,0 11px 22px #0006,inset 0 0 20px #091c1288;}
+ .table-surface::before {inset:5px;border-radius:20px;}
+ .table-surface__ring{inset:11px;border-radius:16px;}
+ .table-center {min-height:415px;padding:130px 15% 20px;}
+ .table-center__label {top:127px;font-size:10px;}
+ .table-center__cards {grid-template-columns:49px minmax(68px,1.15fr) 49px;column-gap:3px;row-gap:7px;grid-template-rows:84px 84px;}
+ .table-center__slot--deck :deep(.playing-card) {--width:65px;}
+ .table-center__slot--discard :deep(.playing-card) {--width:42px;}
+ .table-center__slot--trick {min-height:76px;padding:3px;}
+ .table-center__slot--trump {min-height:112px;padding:5px 1px;}
+ .trump-display strong {font-size:37px;}
+ .table-surface > .opponents > .seat:nth-child(4),.table-surface > .opponents > .seat:nth-child(5) {top:55%;}
+ .slot-heading {font-size:8px;}
+ .slot-count {font-size:8px;}
+ .deck-swipe-hint {font-size:7px;padding:3px;}
+ .player-dock {padding:7px 4px;border-radius:13px;}
+ .player-dock__actions{min-height:0;}
+}
+@media(max-width:360px) and (orientation:portrait) {
+ .table-surface {min-height:405px;}
+ .table-center{min-height:385px;padding:125px 14% 14px;}
+ .table-center__cards{grid-template-columns:43px minmax(59px,1fr) 43px;}
+ .table-center__slot--deck :deep(.playing-card){--width:58px;}
+ .game-status__phase{font-size:9px;}
+}
+@media(prefers-reduced-motion:reduce){
+ .deck-button--available,.action-button,.main-button{transition:none!important;animation:none!important;}
+}
+
 </style>
