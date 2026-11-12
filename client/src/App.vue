@@ -167,6 +167,17 @@ const trumpSymbol = computed(() => {
   return names[state.value?.trumpSuit || ''] || '—';
 });
 const trumpIsRed = computed(() => ['hearts','diamonds'].includes(state.value?.trumpSuit || ''));
+// The first authoritative public draw event already contains the REAL face.
+// Display it in the table's normal card position without an overlay copy,
+// even before the follow-up gameStateUpdate WebSocket message arrives.
+const centralDrawCard = computed<Card|null>(() => {
+  if (state.value?.phase !== 'DEALING') return null;
+  if (state.value.activeCard) return state.value.activeCard.card;
+  const shown=gameStore.drawReveal?.card;
+  if (!shown) return null;
+  if (state.value.players.some(p => p.stumps.some(c => c.id === shown.id))) return null;
+  return shown;
+});
 const canDraw = computed(() => state.value?.phase === 'DEALING'
   && !!state.value.deck.length && !state.value.activeCard &&
   !deckRequestPending.value && !initialDealLocked.value);
@@ -696,7 +707,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                   :class="{ 'game-board__trump-mark--red': trumpIsRed }"
                   :aria-label="'Козырь: ' + state.trumpSuit" :title="'Козырь — ' + trumpSymbol">{{ trumpSymbol }}</span>
               </div>
-              <div v-if="state.activeCard" class="game-board__action-zone"
+              <div v-if="centralDrawCard" class="game-board__action-zone"
                 :class="{ 'game-board__action-zone--in-flight':
                   state.activeCard.ownerId === gameStore.playerId && !!(dragging || flying) }">
                 <div class="game-board__action-stack">
@@ -706,7 +717,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                     :disabled="state.activeCard.ownerId !== gameStore.playerId"
                     aria-label="Перенести открытую карту на игрока"
                     @pointerdown.prevent="beginDrag($event, 'active')">
-                    <CardComponent :card="state.activeCard.card" />
+                    <CardComponent :card="centralDrawCard" />
                   </button>
                 </div>
               </div>
@@ -726,18 +737,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
           <div class="game-board__footer" aria-label="Отбой">
             <span v-if="state.discardPile.length" class="game-board__discard-count">Отбой · {{ state.discardPile.length }}</span>
           </div>
-          <Transition name="draw-reveal">
-            <div v-if="gameStore.drawReveal && gameStore.drawReveal.playerId !== gameStore.playerId" :key="gameStore.drawReveal.id"
-              class="game-board__reveal" role="status" aria-live="polite">
-              <div class="game-board__reveal-stage">
-                <div class="game-board__flip-card">
-                  <div class="game-board__flip-side game-board__flip-side--back"><CardComponent hidden /></div>
-                  <div class="game-board__flip-side game-board__flip-side--front"><CardComponent :card="gameStore.drawReveal.card" /></div>
-                </div>
-              </div>
-              <span class="game-board__reveal-name">{{ state.players.find(p => p.id === gameStore.drawReveal?.playerId)?.name || 'Игрок' }}</span>
-            </div>
-          </Transition>
+
         </div>
 
         <div v-if="dragging && (dragging.kind !== 'hand' || dragging.handLifted)" class="game-board__drag-card" :style="{left:dragging.x+'px',top:dragging.y+'px'}" aria-hidden="true">
