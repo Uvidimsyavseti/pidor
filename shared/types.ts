@@ -42,6 +42,7 @@ export interface GameState {
   trumpSuit: Suit | null;
   attackerId: string | null; 
   currentTrick: Card[]; 
+  trickTargetId?: string | null; // Seat directly clockwise from last main-game play
   discardPile: Card[];
   turnIndex: number; 
   lastDrawnPlayerIdx: number | null; 
