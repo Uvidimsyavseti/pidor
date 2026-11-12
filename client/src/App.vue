@@ -29,7 +29,6 @@ const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
 const accuseOpen = ref(false);
-const latestDraw = ref<{ playerId: string; outOfTurn: boolean; forcedSelf: boolean; createdAt: number } | null>(null);
 const dragging = ref<{kind:'deck'|'pile';pointerId:number;x:number;y:number;startX:number;startY:number;card:Card|null}|null>(null);
 const dragTarget = ref<string|null>(null);
 const playMode = ref<'friends' | 'bot'>(new URLSearchParams(window.location.search).get('mode') === 'bot' ? 'bot' : 'friends');
@@ -55,12 +54,6 @@ onMounted(() => {
 });
 watch(() => gameStore.gameState?.phase, () => { selectedCard.value = null; });
 watch(() => gameStore.gameState?.pendingPenaltyTurn?.giverId, () => { selectedCard.value = null; });
-watch(() => gameStore.gameState?.lastDrawEvent?.createdAt, () => {
-  const event = gameStore.gameState?.lastDrawEvent;
-  if (!event || Date.now() - event.createdAt > 4500) return;
-  latestDraw.value = event;
-  setTimeout(() => { if (latestDraw.value === event) latestDraw.value = null; }, 3900);
-});
 
 const state = computed(() => gameStore.gameState);
 const me = computed(() => state.value?.players.find(p => p.id === gameStore.playerId));
@@ -269,6 +262,7 @@ watch(() => gameStore.gameState?.turnIndex, (next, prev) => {
   if (next !== prev && isMyTurn.value && state.value?.phase !== 'LOBBY') playSound('turn');
 });
 watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); });
+watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
 
 </script>
 
@@ -409,12 +403,6 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
           </div>
           <button type="button" :disabled="!!me?.isReady" @click="readyReview">{{ me?.isReady ? 'ОЖИДАЕМ ОСТАЛЬНЫХ…' : 'ЗАКОНЧИТЬ РАЗБОР' }}</button>
         </div>
-        <Transition name="toast">
-          <div v-if="latestDraw && state.phase === 'DEALING'" class="draw-activity" role="status">
-            <strong>{{ state.players.find(p => p.id === latestDraw?.playerId)?.name }} вытянул карту</strong>
-            <span>Карта вытянута из колоды</span>
-          </div>
-        </Transition>
         <div class="table-surface" :class="{ 'table-surface--my-turn': isMyTurn && state.phase !== 'ENDED' }">
           <div class="table-surface__ring" aria-hidden="true"></div>
           <div class="opponents" :class="'opponents--' + others.length">
@@ -431,6 +419,21 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
 
           <div class="table-center">
             <div class="table-center__label">PIDOR ONLINE</div>
+            <!-- Authoritative public draw event: the SAME card flips face-up
+                 on EVERY connected screen, even when already on a pile. -->
+            <Transition name="draw-reveal" mode="out-in">
+              <div v-if="gameStore.drawReveal" :key="gameStore.drawReveal.id"
+                class="draw-reveal" role="status" aria-live="polite"
+                :aria-label="(state.players.find(p => p.id === gameStore.drawReveal?.playerId)?.name || 'Игрок') + ' вытянул открытую карту'">
+                <div class="draw-reveal__scene">
+                  <div class="draw-reveal__rotator">
+                    <div class="draw-reveal__face draw-reveal__face--back"><CardComponent hidden /></div>
+                    <div class="draw-reveal__face draw-reveal__face--front"><CardComponent :card="gameStore.drawReveal.card" /></div>
+                  </div>
+                </div>
+                <div class="draw-reveal__caption">{{ state.players.find(p => p.id === gameStore.drawReveal?.playerId)?.name || 'Игрок' }} тянет карту</div>
+              </div>
+            </Transition>
             <div class="table-center__cards">
               <div class="table-center__slot table-center__slot--deck">
                 <span class="slot-heading">КОЛОДА</span>
@@ -1498,6 +1501,63 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
   .player-dock--dealing :deep(.seat--me){padding:2px;}
   .player-dock__buttons .action-button {min-height:35px;}
   .player-dock:not(.player-dock--dealing) {max-height:none;overflow:visible;}
+}
+
+
+/* The communal deck is PUBLIC. Every draw rotates its original back to the
+   exact visible face. The overlay is short, read-only and pointer-transparent. */
+.draw-reveal {
+  position:absolute;z-index:80;
+  left:50%;top:52%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  pointer-events:none;user-select:none;
+  filter:drop-shadow(0 13px 22px rgba(3,12,7,.68));
+  animation:draw-reveal-presence 1.7s linear both;
+}
+.draw-reveal__scene{width:110px;height:165px;perspective:650px;transform-style:preserve-3d;}
+.draw-reveal__rotator{
+  position:relative;width:100%;height:100%;transform-style:preserve-3d;
+  animation:draw-reveal-turn .72s cubic-bezier(.16,.78,.18,1) both;
+}
+.draw-reveal__face{
+  position:absolute;inset:0;display:block;width:100%;height:100%;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+}
+.draw-reveal__face--back{transform:rotateY(0deg);}
+.draw-reveal__face--front{transform:rotateY(180deg);}
+.draw-reveal__face :deep(.playing-card){--width:110px;}
+.draw-reveal__caption{
+  max-width:165px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  border:1px solid rgba(229,195,131,.42);
+  border-radius:20px;padding:5px 12px;
+  background:rgba(12,38,25,.92);color:#f9e4bb;
+  font-size:10px;font-weight:800;text-align:center;
+}
+.draw-reveal-leave-active{transition:opacity .12s linear;}
+.draw-reveal-leave-to{opacity:0;}
+@keyframes draw-reveal-turn{
+  0%,12%{transform:rotateY(0deg) translateY(9px) scale(.84);}
+  90%,100%{transform:rotateY(180deg) translateY(-3px) scale(1);}
+}
+@keyframes draw-reveal-presence {
+  0%{opacity:0;}
+  8%{opacity:1;}
+  82%{opacity:1;}
+  100%{opacity:0;}
+}
+@media(max-width:680px){
+  .draw-reveal__scene{width:76px;height:114px;}
+  .draw-reveal__face :deep(.playing-card){--width:76px;}
+  .draw-reveal{top:55%;gap:4px;}
+  .draw-reveal__caption{font-size:9px;padding:4px 8px;}
+}
+@media(max-width:365px){
+  .draw-reveal__scene{width:62px;height:93px;}
+  .draw-reveal__face :deep(.playing-card){--width:62px;}
+}
+@media(prefers-reduced-motion:reduce){
+  .draw-reveal__rotator{animation:none;transform:rotateY(180deg);}
+  .draw-reveal{animation:none;}
 }
 
 </style>
