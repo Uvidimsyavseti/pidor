@@ -30,6 +30,7 @@ const deckGestureHeld = ref(false);
 const activeDragging = ref(false);
 const dragPoint = ref({ x: 0, y: 0 });
 const dragTarget = ref<string | null>(null);
+const fanHover = ref(false);
 const pending = ref<string | null>(null);
 const alertText = ref('');
 let toastTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -391,7 +392,7 @@ onBeforeUnmount(() => {
           <div class="table__discard-num">{{ state.discardPile.length }}</div>
         </div>
 
-        <div data-drop-zone="trick" class="table__play-target" :class="{ 'table__play-target--enabled': canPlay }"></div>
+        <div data-drop-zone="trick" class="table__play-target" :class="{ 'table__play-target--enabled': canPlay, 'table__play-target--dragover': fanHover }"></div>
         <div class="table__trick" :style="state.phase === 'MAIN_GAME' ? trickPosition : {}">
           <div v-for="(card,i) in state.currentTrick" :key="card.id" :style="{ '--trick-rot': (i * 6 - 4) + 'deg', '--trick-x': (i * 8) + 'px', '--trick-y': (i * -4) + 'px' }">
             <CardComponent :card="card" small />
@@ -420,7 +421,7 @@ onBeforeUnmount(() => {
         <HandFan v-if="me && ['MAIN_GAME', 'PENALTY_DISTRIBUTION'].includes(state.phase)" :cards="me.hand"
           :disabled="state.phase === 'MAIN_GAME' ? !canPlay : animationLocked"
           @play="state.phase === 'MAIN_GAME' ? playCard($event) : (selectedPenalty = $event)"
-          @select="tone('select')"
+          @select="tone('select')" @hover="fanHover = $event"
         />
       </footer>
     </section>
