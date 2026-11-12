@@ -43,6 +43,8 @@ const showRules = ref(false);
 const accuseOpen = ref(false);
 const dragging = ref<{kind:'deck'|'pile'|'active';pointerId:number;x:number;y:number;startX:number;startY:number;card:Card|null}|null>(null);
 const deckRequestPending = ref(false);
+const initialDealLocked = ref(false);
+let initialDealTimer: ReturnType<typeof setTimeout> | null = null;
 const pendingDrawDrop = ref<string|null>(null);
 const dragTarget = ref<string|null>(null);
 const playMode = ref<'friends' | 'bot'>(new URLSearchParams(window.location.search).get('mode') === 'bot' ? 'bot' : 'friends');
@@ -116,7 +118,8 @@ const trumpSymbol = computed(() => {
 });
 const trumpIsRed = computed(() => ['hearts','diamonds'].includes(state.value?.trumpSuit || ''));
 const canDraw = computed(() => state.value?.phase === 'DEALING'
-  && !!state.value.deck.length && !state.value.activeCard && !deckRequestPending.value);
+  && !!state.value.deck.length && !state.value.activeCard &&
+  !deckRequestPending.value && !initialDealLocked.value);
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 // The user may drop on ANY seat. Only the first eligible target gets a
@@ -196,6 +199,21 @@ function readyReview() {
 }
 // A card is actually DRAWN on pointer-down. The server immediately announces
 // its true rank and suit to everyone; we never wait until dropping to reveal.
+// The initial round is pre-dealt on the server, but players cannot drag
+// any cards until its shared presentation window has finished.
+watch(() => state.value?.initialDealEndsAt, deadline => {
+  if (initialDealTimer) clearTimeout(initialDealTimer);
+  const remaining = deadline ? Math.max(0, deadline - Date.now()) : 0;
+  initialDealLocked.value = remaining > 0;
+  if (remaining > 0) {
+    initialDealTimer = setTimeout(() => {
+      initialDealLocked.value = false;
+      initialDealTimer = null;
+    }, remaining + 50);
+  }
+}, { immediate: true });
+onUnmounted(() => { if (initialDealTimer) clearTimeout(initialDealTimer); });
+
 watch(() => state.value?.deck.length, () => {
   if (!deckRequestPending.value) return;
   deckRequestPending.value = false;
@@ -220,10 +238,10 @@ watch(() => gameStore.gameState?.phase, phase => {
   }
 });
 function beginDrag(event: PointerEvent, kind: 'deck' | 'pile' | 'active') {
-  if (state.value?.phase !== 'DEALING') return;
+  if (state.value?.phase !== 'DEALING' || initialDealLocked.value) return;
   if (kind === 'deck' && !canDraw.value) return;
   if (kind === 'pile' && (state.value.activeCard || !isMyTurn.value || !me.value ||
-    me.value.stumps.length <= (state.value.underlaidCards === false ? 0 : 3))) return;
+    me.value.stumps.length <= (state.value.underlaidCards === false ? 1 : 3))) return;
   if (kind === 'active' && state.value.activeCard?.ownerId !== gameStore.playerId) return;
   event.preventDefault();
   event.stopPropagation();
