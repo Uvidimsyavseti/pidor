@@ -1631,3 +1631,4 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
 }
 
 </style>
+<style scoped src="./game-arena.css"></style>
