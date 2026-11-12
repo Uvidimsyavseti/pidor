@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
-import type { GameState } from '@shared/types';
+import type { CardDrawReveal, GameState } from '@shared/types';
+import { clearCurrentAfter, PENALTY_NOTICE_MS, ACCUSATION_VERDICT_MS, PENALTY_SPLASH_MS, CARD_REVEAL_MS } from './notificationTiming';
 const sessionKey = (room: string) => 'pidor-session:' + room;
 const server = (room: string) => {
   const root = new URL(import.meta.env.VITE_SERVER_URL || location.origin);
@@ -21,7 +22,8 @@ export const useGameStore = defineStore('game', {
     joined: false, connected: false, connecting: false, reconnect: false, error: '',
     lastPenalty: null as { playerId: string; reason: string } | null,
     penaltySplash: false, splashSequence: 0,
-    verdictToast: null as { correct: boolean; accuserId: string; accusedId: string; penalizedId: string; reason: string } | null
+    verdictToast: null as { correct: boolean; accuserId: string; accusedId: string; penalizedId: string; reason: string } | null,
+    drawReveal: null as CardDrawReveal | null
   }),
   actions: {
     connect() { /* open on join */ },
@@ -74,19 +76,25 @@ export const useGameStore = defineStore('game', {
         else if (message.type === 'penalty') {
           const data = message.data as { playerId: string; reason: string };
           this.lastPenalty = data;
-          setTimeout(() => { if (this.lastPenalty === data) this.lastPenalty = null; }, 2050);
+          clearCurrentAfter(data, () => this.lastPenalty, () => { this.lastPenalty = null; }, PENALTY_NOTICE_MS);
         } else if (message.type === 'penaltyAwarded') {
           this.splashSequence++;
           const sequence = this.splashSequence;
           this.penaltySplash = true;
           this.lastPenalty = null;
-          setTimeout(() => {
-            if (this.splashSequence === sequence) this.penaltySplash = false;
-          }, 1550);
+          clearCurrentAfter(sequence, () => this.splashSequence, () => { this.penaltySplash = false; }, PENALTY_SPLASH_MS);
         } else if (message.type === 'accusationVerdict') {
           const data = message.data as { correct: boolean; accuserId: string; accusedId: string; penalizedId: string; reason: string };
+          // One verdict is clearer than three overlapping penalty banners.
+          this.lastPenalty = null;
+          this.penaltySplash = false;
           this.verdictToast = data;
-          setTimeout(() => { if (this.verdictToast === data) this.verdictToast = null; }, 2050);
+          clearCurrentAfter(data, () => this.verdictToast, () => { this.verdictToast = null; }, ACCUSATION_VERDICT_MS);
+        } else if (message.type === 'cardDrawReveal') {
+          const data = message.data as CardDrawReveal;
+          if (!data?.card?.rank || !data?.card?.suit || !data.playerId) return;
+          this.drawReveal = data;
+          clearCurrentAfter(data, () => this.drawReveal, () => { this.drawReveal = null; }, CARD_REVEAL_MS);
         } else if (message.type === 'actionError') {
           this.error = String(message.data);
           setTimeout(() => { if (this.error === message.data) this.error = ''; }, 3200);
@@ -119,6 +127,7 @@ export const useGameStore = defineStore('game', {
       this.lastPenalty = null;
       this.penaltySplash = false;
       this.verdictToast = null;
+      this.drawReveal = null;
       this.joined = false;
       this.playerId = '';
       this.roomId = room;
@@ -140,6 +149,10 @@ export const useGameStore = defineStore('game', {
       this.gameState = null;
       this.playerId = '';
       this.tableTitle = '';
+      this.lastPenalty = null;
+      this.penaltySplash = false;
+      this.verdictToast = null;
+      this.drawReveal = null;
       if (this.heartbeat) { clearInterval(this.heartbeat); this.heartbeat = null; }
       this.socket?.close(1000, 'Leaving table');
       this.socket = null;
