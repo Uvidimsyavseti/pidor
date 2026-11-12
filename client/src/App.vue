@@ -53,7 +53,7 @@ const isMyTurn = computed(() => state.value?.players[state.value.turnIndex]?.id 
 const currentPhase = computed(() => state.value?.phase || '');
 const phaseText = computed(() => {
   const labels: Record<string, string> = {
-    LOBBY: 'Ожидание', DEALING: 'Раскладка', PENALTY_DISTRIBUTION: 'Похуёвые', MAIN_GAME: 'Основная игра', ENDED: 'Финал',
+    LOBBY: 'Ожидание', DEALING: 'Раскладка', PENALTY_REVIEW: 'Проверка', PENALTY_DISTRIBUTION: 'Похуёвые', MAIN_GAME: 'Основная игра', ENDED: 'Финал',
   };
   return labels[currentPhase.value] || '';
 });
@@ -313,7 +313,7 @@ watch(state, (value, old) => {
     protectedIds.value = locked;
     if (sequence.length) void replayInitialDeal(sequence);
   }
-  if (value.activeCard?.card.id && value.activeCard.card.id !== old?.activeCard?.card.id && !deckGestureHeld.value) {
+  if (value.activeCard?.card.id && value.activeCard.card.id !== old?.activeCard?.card.id) {
     activeFlightId.value = value.activeCard.card.id;
     void flyCard(value.activeCard.card, null, true).finally(() => {
       activeFlightId.value = null;
@@ -324,6 +324,14 @@ watch(state, (value, old) => {
   if (pending.value && value.phase !== old?.phase) pending.value = null;
 }, { flush: 'sync' });
 
+watch(() => game.lastError, message => {
+  if (message) { showToast(message); pending.value = null; }
+});
+watch(() => game.lastVerdict, verdict => {
+  if (!verdict) return;
+  showToast((verdict.correct ? '☠ Нарушение доказано' : '☠ Ложное обвинение') + ' · ' + verdict.reason);
+  tone('penalty');
+});
 watch(() => game.lastPenalty, penalty => {
   if (!penalty) return;
   showToast('☠ ' + penaltyPlayerName.value + ' · ' + penalty.reason);
@@ -486,6 +494,8 @@ onBeforeUnmount(() => {
 
       <footer class="hand-area">
         <div class="hand-area__actions">
+          <button v-if="['DEALING', 'PENALTY_REVIEW', 'MAIN_GAME'].includes(state.phase)" class="action-pill action-pill--quiet" @click="accuseSelected" :disabled="!selectedAccused">☠ ПОХУЁВАЯ! {{ selectedAccused ? state.players.find(p => p.id === selectedAccused)?.name : '' }}</button>
+          <button v-if="state.phase === 'PENALTY_REVIEW'" class="action-pill action-pill--quiet" @click="game.finishReview()">Продолжить</button>
           <button v-if="state.phase === 'MAIN_GAME' && isMyTurn && state.currentTrick.length" class="action-pill" @click="game.takeTrick()">Забрать</button>
           <button v-if="me && !me.hand.length && me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill" @click="game.takeStumps()">Беру пеньки</button>
           <button v-if="me && !me.hand.length && !me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill action-pill--quiet" @click="game.exitGame()">Выйти</button>
