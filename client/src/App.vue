@@ -154,7 +154,7 @@ const trickPosition = computed(() => {
   };
   const target = coords[slot] || coords.bottom;
   // The trick occupies the space between the two players, not their piles.
-  return { left: `calc((50% + ${target.left}) / 2)`, top: `calc((50% + ${target.top}) / 2)` };
+  return { left: ((50 + parseFloat(target.left)) / 2) + '%', top: ((50 + parseFloat(target.top)) / 2) + '%' };
 });
 
 function tone(kind: 'draw' | 'drop' | 'turn' | 'select' | 'penalty') {
