@@ -440,17 +440,18 @@ export class PidorGame {
 
   isLegalMove(card: Card, target: Card | null): boolean {
     if (!target) return true;
-    // Any six beats an ace of its own suit, including spade/trump aces.
-    if (card.rank === '6' && target.rank === 'A' && card.suit === target.suit) return true;
-    if (!this.state.trumpSuit) {
-      // No-trump game: only cards of the same suit can beat each other.
-      return card.suit === target.suit && this.canBeat(card, target);
+    // Main game: same suit and any higher rank. This is deliberately
+    // distinct from the consecutive-rank-only dealing phase.
+    if (card.rank === '6' && target.rank === 'A' && card.suit === target.suit) {
+      return card.suit !== 'spades';
     }
+    const higher = RANK_VALUE[card.rank] > RANK_VALUE[target.rank];
+    if (!this.state.trumpSuit) return card.suit === target.suit && higher;
     if (target.rank === 'A' && (target.suit === 'spades' || target.suit === this.state.trumpSuit)) return false;
-    if (target.suit === 'spades') return card.suit === 'spades' && this.canBeat(card, target);
-    if (target.suit === this.state.trumpSuit) return card.suit === this.state.trumpSuit && this.canBeat(card, target);
+    if (target.suit === 'spades') return card.suit === 'spades' && higher;
+    if (target.suit === this.state.trumpSuit) return card.suit === this.state.trumpSuit && higher;
     if (card.suit === this.state.trumpSuit) return true;
-    return card.suit === target.suit && this.canBeat(card, target);
+    return card.suit === target.suit && higher;
   }
 
   takeTrick(playerId: string) {
