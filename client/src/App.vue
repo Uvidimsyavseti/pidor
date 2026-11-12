@@ -576,7 +576,7 @@ onBeforeUnmount(() => {
     </section>
 
     <section v-else-if="state" class="game-viewport">
-      <div class="table">
+      <div class="table" :class="{ 'table--six': state.players.length === 6, 'table--five': state.players.length === 5 }">
         <div
           v-for="entry in seats"
           :key="entry.player.id"
