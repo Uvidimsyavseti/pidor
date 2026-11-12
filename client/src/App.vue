@@ -555,7 +555,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <footer class="hand-area">
+      <footer class="hand-area" :class="{ 'hand-area--fan': ['MAIN_GAME', 'PENALTY_DISTRIBUTION'].includes(state.phase) }">
         <div class="hand-area__actions">
           <button v-if="['DEALING', 'PENALTY_REVIEW', 'MAIN_GAME'].includes(state.phase)" class="action-pill action-pill--quiet" @click="accuseSelected" :disabled="!selectedAccused">☠ ПОХУЁВАЯ! {{ selectedAccused ? state.players.find(p => p.id === selectedAccused)?.name : '' }}</button>
           <button v-if="state.phase === 'PENALTY_REVIEW'" class="action-pill action-pill--quiet" @click="game.finishReview()">Продолжить <span v-if="reviewSeconds">· {{ reviewSeconds }}с</span></button>
