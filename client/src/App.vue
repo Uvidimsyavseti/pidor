@@ -456,6 +456,8 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
               :player="p" :is-me="false" :phase="state.phase"
               :underlaid-cards="state.underlaidCards !== false"
               :is-turn="turnPlayer?.id === p.id" :recommended="isRecommendedTarget(p.id)"
+              :incoming-card="state.trickTargetId === p.id ? state.currentTrick[state.currentTrick.length - 1] : null"
+              :incoming-count="state.trickTargetId === p.id ? state.currentTrick.length : 0"
               :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
                 (penaltyTargeting && penaltyTargets.some(t => t.id === p.id))) && !p.hasExited"
               @click="handleSeatClick(p.id)" @card-click="handleCardClick"
@@ -466,6 +468,8 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
               <PlayerSeat v-if="others[3]" :key="others[3].id" :player="others[3]" :is-me="false"
                 :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
                 :is-turn="turnPlayer?.id === others[3].id" :recommended="isRecommendedTarget(others[3].id)"
+                :incoming-card="state.trickTargetId === others[3].id ? state.currentTrick[state.currentTrick.length - 1] : null"
+                :incoming-count="state.trickTargetId === others[3].id ? state.currentTrick.length : 0"
                 :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
                   (penaltyTargeting && penaltyTargets.some(t => t.id === others[3]?.id))) && !others[3].hasExited"
                 @click="handleSeatClick(others[3].id)" @card-click="handleCardClick"
@@ -481,14 +485,14 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                   <span v-else class="game-board__deck-empty">—</span>
                 </button>
                 <span class="game-board__deck-count">{{ state.deck.length }}</span>
+                <span v-if="state.phase === 'MAIN_GAME' && state.trumpSuit"
+                  class="game-board__trump-mark"
+                  :class="{ 'game-board__trump-mark--red': trumpIsRed }"
+                  :aria-label="'Козырь: ' + state.trumpSuit" :title="'Козырь — ' + trumpSymbol">{{ trumpSymbol }}</span>
               </div>
-              <div class="game-board__action-zone">
-                <span class="game-board__small-label">{{ state.phase === 'MAIN_GAME' ? 'РОЗЫГРЫШ' : 'ОТКРЫТАЯ КАРТА' }}</span>
+              <div v-if="state.activeCard" class="game-board__action-zone">
                 <div class="game-board__action-stack">
-                  <CardComponent v-for="(card,i) in state.currentTrick.slice(-3)" :key="card.id"
-                    :card="card" class="game-board__trick-card"
-                    :style="{ '--card-index': i }" />
-                  <button v-if="state.activeCard" type="button"
+                  <button type="button"
                     class="game-board__active-card"
                     :class="{ 'game-board__active-card--mine': state.activeCard.ownerId === gameStore.playerId }"
                     :disabled="state.activeCard.ownerId !== gameStore.playerId"
@@ -496,7 +500,6 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                     @pointerdown.prevent="beginDrag($event, 'active')">
                     <CardComponent :card="state.activeCard.card" />
                   </button>
-                  <span v-if="!state.activeCard && !state.currentTrick.length" class="game-board__action-empty">✦</span>
                 </div>
               </div>
             </div>
@@ -504,20 +507,16 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
               <PlayerSeat v-if="others[4]" :key="others[4].id" :player="others[4]" :is-me="false"
                 :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
                 :is-turn="turnPlayer?.id === others[4].id" :recommended="isRecommendedTarget(others[4].id)"
+                :incoming-card="state.trickTargetId === others[4].id ? state.currentTrick[state.currentTrick.length - 1] : null"
+                :incoming-count="state.trickTargetId === others[4].id ? state.currentTrick.length : 0"
                 :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
                   (penaltyTargeting && penaltyTargets.some(t => t.id === others[4]?.id))) && !others[4].hasExited"
                 @click="handleSeatClick(others[4].id)" @card-click="handleCardClick"
               />
             </div>
           </div>
-          <div class="game-board__footer">
-            <div class="game-board__compact-stat">
-              <span>ОТБОЙ</span><b>{{ state.discardPile.length }}</b>
-            </div>
-            <span v-if="state.phase === 'MAIN_GAME' && state.trumpSuit"
-              class="game-board__trump" :aria-label="'Козырь: ' + state.trumpSuit" title="Козырная масть">
-              козырь <strong :class="{ 'game-board__trump--red': trumpIsRed }">{{ trumpSymbol }}</strong>
-            </span>
+          <div class="game-board__footer" aria-label="Отбой">
+            <span v-if="state.discardPile.length" class="game-board__discard-count">Отбой · {{ state.discardPile.length }}</span>
           </div>
           <Transition name="draw-reveal">
             <div v-if="gameStore.drawReveal" :key="gameStore.drawReveal.id"
@@ -552,6 +551,8 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
           <PlayerSeat v-if="me" :player="me" :is-me="true" :is-turn="isMyTurn"
             :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
             :selected-card-id="selectedCard?.id" :recommended="isRecommendedTarget(gameStore.playerId)"
+            :incoming-card="state.trickTargetId === gameStore.playerId ? state.currentTrick[state.currentTrick.length - 1] : null"
+            :incoming-count="state.trickTargetId === gameStore.playerId ? state.currentTrick.length : 0"
             :targetable="!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId)"
             @click="handleSeatClick(gameStore.playerId)" @drag-start="beginDrag($event, 'pile')"
             @card-click="handleCardClick" />
