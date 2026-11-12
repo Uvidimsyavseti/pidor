@@ -1,0 +1,39 @@
+name: Build Isolated P1-P2 Preview
+on:
+  push:
+    branches: [feature/p1-p2-telegram-table-ui]
+    paths-ignore:
+      - 'preview/**'
+permissions:
+  contents: write
+concurrency:
+  group: pidor-ui-preview
+  cancel-in-progress: true
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+      - name: Install + build
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+      - name: Produce standalone staging worker
+        run: python3 scripts/build_preview.py
+      - name: Commit staging artifact
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add preview/worker.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m "Preview build artifact [skip ci]"
+            git push origin "HEAD:feature/p1-p2-telegram-table-ui"
+          fi

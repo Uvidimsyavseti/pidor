@@ -1,0 +1,25 @@
+name: UI Typecheck and Build
+on:
+  push:
+    branches: [feature/p1-p2-telegram-table-ui]
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'shared/**'
+      - '.github/workflows/p1-p2-ui.yml'
+jobs:
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+      - name: Vue typecheck and Vite build
+        working-directory: client
+        run: npm run build

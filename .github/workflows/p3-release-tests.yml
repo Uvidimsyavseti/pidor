@@ -1,0 +1,32 @@
+name: P3 P4 Release Safety
+on:
+  push:
+    branches: [feature/p1-p2-telegram-table-ui]
+    paths:
+      - 'server/**'
+      - 'package.json'
+      - 'shared/**'
+      - '.github/workflows/p3-release-tests.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'package.json'
+      - 'shared/**'
+      - '.github/workflows/p3-release-tests.yml'
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+      - name: Server gameplay invariants
+        working-directory: server
+        run: npm test

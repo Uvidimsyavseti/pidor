@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch index.ts",
     "start": "tsx index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx --test test/release.spec.ts"
   },
   "keywords": [],
   "author": "",
