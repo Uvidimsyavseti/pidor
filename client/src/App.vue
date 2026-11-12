@@ -345,17 +345,26 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
     ? document.querySelector('[data-seat-id="' + CSS.escape(targetId) + '"] .seat__cards')
     : document.querySelector('.table__active-anchor');
   const to = getCenter(target, { x: window.innerWidth / 2 - 42, y: window.innerHeight / 2 - 59 });
+  // Match the real card size at both ends; never shrink to a hard-coded .59.
+  const sourceCard = originSeatId
+    ? document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .playing-card')
+    : deckRef.value?.querySelector('.playing-card');
+  const targetCard = targetId
+    ? document.querySelector('[data-seat-id="' + CSS.escape(targetId) + '"] .playing-card')
+    : document.querySelector('.table__active .playing-card');
+  const sourceScale = (sourceCard?.getBoundingClientRect().width || 84) / 84;
+  const targetScale = (targetCard?.getBoundingClientRect().width || (targetId ? 54 : 84)) / 84;
   flightOrigin.value = from;
   flight.value = { card, hidden: true };
   await nextTick();
   const element = flightRef.value;
   if (!element) { flight.value = null; return; }
-  element.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(.87)';
+  element.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(' + sourceScale + ')';
   const ms = reducedMotion ? 70 : 420;
   const motion = element.animate([
-    { transform: 'translate(' + from.x + 'px,' + from.y + 'px) scale(.87) rotate(-5deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
-    { transform: 'translate(' + ((from.x + to.x) / 2) + 'px,' + ((from.y + to.y) / 2 - 30) + 'px) scale(1.09) rotate(2deg)', filter: 'drop-shadow(0 14px 10px #0008)', offset: .44 },
-    { transform: 'translate(' + to.x + 'px,' + to.y + 'px) scale(.59) rotate(0deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
+    { transform: 'translate(' + from.x + 'px,' + from.y + 'px) scale(' + sourceScale + ') rotate(-5deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
+    { transform: 'translate(' + ((from.x + to.x) / 2) + 'px,' + ((from.y + to.y) / 2 - 30) + 'px) scale(' + Math.max(sourceScale, targetScale) * 1.04 + ') rotate(2deg)', filter: 'drop-shadow(0 14px 10px #0008)', offset: .44 },
+    { transform: 'translate(' + to.x + 'px,' + to.y + 'px) scale(' + targetScale + ') rotate(0deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
   ], { duration: ms, easing: 'cubic-bezier(.2,.7,.25,1)', fill: 'forwards' });
   if (faceUp) {
     const body = element.querySelector<HTMLElement>('.card-flight__body');
