@@ -72,6 +72,7 @@ const hiddenIds = ref<Set<string>>(new Set());
 const protectedIds = ref<Set<string>>(new Set());
 const activeFlightId = ref<string | null>(null);
 const landingSeatId = ref<string | null>(null);
+const hiddenTrickIds = ref<Set<string>>(new Set());
 const deckGestureId = ref<number | null>(null);
 const deckGestureHeld = ref(false);
 const deckDragPreview = ref(false);
@@ -151,7 +152,9 @@ const trickPosition = computed(() => {
     right: { left: '76%', top: '45%' },
     bottom: { left: '50%', top: '69%' },
   };
-  return coords[slot] || coords.bottom;
+  const target = coords[slot] || coords.bottom;
+  // The trick occupies the space between the two players, not their piles.
+  return { left: `calc((50% + ${target.left}) / 2)`, top: `calc((50% + ${target.top}) / 2)` };
 });
 
 function tone(kind: 'draw' | 'drop' | 'turn' | 'select' | 'penalty') {
@@ -360,18 +363,18 @@ function enqueueFlight(card: Card, targetId: string | null, faceUp: boolean, ori
   return next;
 }
 async function flyCard(card: Card, targetId: string | null, faceUp: boolean, originSeatId?: string) {
-  const from = originSeatId === '__active__' ? getCenter(document.querySelector('.table__active .playing-card') ?? document.querySelector('.table__active-anchor'), deckPoint()) : originSeatId ? getCenter(document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .seat__cards'), deckPoint()) : deckPoint();
+  const from = originSeatId === '__hand__' ? getCenter(document.querySelector('.hand-area .playing-card'), {x:window.innerWidth/2-42,y:window.innerHeight-160}) : originSeatId === '__active__' ? getCenter(document.querySelector('.table__active .playing-card') ?? document.querySelector('.table__active-anchor'), deckPoint()) : originSeatId ? getCenter(document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .seat__cards'), deckPoint()) : deckPoint();
   const target = targetId
     ? document.querySelector('[data-seat-id="' + CSS.escape(targetId) + '"] .seat__cards')
-    : document.querySelector('.table__active-anchor');
+    : document.querySelector(currentPhase.value === 'MAIN_GAME' ? '.table__trick' : '.table__active-anchor');
   const to = getCenter(target, { x: window.innerWidth / 2 - 42, y: window.innerHeight / 2 - 59 });
   // Match the real card size at both ends; never shrink to a hard-coded .59.
-  const sourceCard = originSeatId === '__active__' ? document.querySelector('.table__active .playing-card') : originSeatId
+  const sourceCard = originSeatId === '__hand__' ? document.querySelector('.hand-area .playing-card') : originSeatId === '__active__' ? document.querySelector('.table__active .playing-card') : originSeatId
     ? document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .playing-card')
     : deckRef.value?.querySelector('.playing-card');
   const targetCard = targetId
     ? document.querySelector('[data-seat-id="' + CSS.escape(targetId) + '"] .playing-card')
-    : document.querySelector('.table__active .playing-card');
+    : document.querySelector(currentPhase.value === 'MAIN_GAME' ? '.table__trick .playing-card' : '.table__active .playing-card');
   const sourceScale = (sourceCard?.getBoundingClientRect().width || 84) / 84;
   const targetScale = (targetCard?.getBoundingClientRect().width || (targetId ? 54 : 84)) / 84;
   flightOrigin.value = from;
@@ -451,6 +454,20 @@ watch(state, (value, old) => {
     }
     protectedIds.value = locked;
     if (sequence.length) void replayInitialDeal(sequence);
+  }
+  // Animate attacks and covers for every player, including bot turns.
+  if (value.phase === 'MAIN_GAME' && old?.phase === 'MAIN_GAME') {
+    const previous = new Set(old.currentTrick.map(c => c.id));
+    for (const card of value.currentTrick) {
+      if (previous.has(card.id)) continue;
+      const owner = old.players.find(p => p.hand.some(c => c.id === card.id));
+      hiddenTrickIds.value = new Set([...hiddenTrickIds.value, card.id]);
+      void enqueueFlight(card, null, true, owner?.id === game.playerId ? '__hand__' : owner?.id).finally(() => {
+        const next = new Set(hiddenTrickIds.value);
+        next.delete(card.id);
+        hiddenTrickIds.value = next;
+      });
+    }
   }
   // Animate every confirmed card placement, including moves made by bots.
   // The destination card stays hidden until the travelling card lands.
@@ -702,7 +719,7 @@ onBeforeUnmount(() => {
 
         <div data-drop-zone="trick" class="table__play-target" :class="{ 'table__play-target--enabled': canPlay, 'table__play-target--dragover': fanHover }"></div>
         <div class="table__trick" :style="state.phase === 'MAIN_GAME' ? trickPosition : {}">
-          <div v-for="(card,i) in state.currentTrick" :key="card.id" :style="{ '--trick-rot': (i * 6 - 4) + 'deg', '--trick-x': (i * 8) + 'px', '--trick-y': (i * -4) + 'px' }">
+          <div v-for="(card,i) in state.currentTrick.filter(card => !hiddenTrickIds.has(card.id))" :key="card.id" :style="{ '--trick-rot': (i * 6 - 4) + 'deg', '--trick-x': (i * 8) + 'px', '--trick-y': (i * -4) + 'px' }">
             <CardComponent :card="card" small />
           </div>
         </div>
