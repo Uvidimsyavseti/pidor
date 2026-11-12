@@ -3,7 +3,8 @@ import { PidorGame } from './gameLogic';
 import { applyBotMove, nextBotMove } from './botStrategy';
 import { handleTelegram } from './telegram';
 import { LobbyDirectory } from './lobbyDirectory';
-import type { Card, GameState } from '../shared/types';
+import { createDrawReveal } from './drawReveal';
+import type { Card, CardDrawReveal, GameState } from '../shared/types';
 
 interface Env {
   ROOMS: DurableObjectNamespace<PidorRoom>;
@@ -33,9 +34,8 @@ function visibleState(state: GameState, playerId: string): GameState {
         ? card : mask('stumps-' + p.id + '-' + i));
     return p;
   });
-  if (copy.activeCard && copy.activeCard.fromDeck && copy.activeCard.ownerId !== playerId) {
-    copy.activeCard.card = mask('active');
-  }
+  // Cards drawn from the common deck are face-up public information:
+  // non-drawing players must see the real card while it is being placed.
   return copy;
 }
 async function verifyTelegram(initData: string, botToken?: string): Promise<{ id: number; first_name?: string; username?: string } | null> {
@@ -113,6 +113,16 @@ export class PidorRoom extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({} satisfies Connection);
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  private broadcastDrawReveal(event: CardDrawReveal): void {
+    // Every connected spectator/player receives the same actual rank and suit.
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket.readyState === WebSocket.OPEN &&
+          (socket.deserializeAttachment() as Connection | null)?.playerId) {
+        emit(socket, 'cardDrawReveal', event);
+      }
+    }
   }
 
   private broadcast(): void {
@@ -258,9 +268,15 @@ export class PidorRoom extends DurableObject<Env> {
       await this.driveBots();
       return;
     }
+    const drawBefore = move.type === 'drawCardFromDeck' ? this.game.state.deck.length : 0;
+    const drawnTop = move.type === 'drawCardFromDeck' ? this.game.state.deck[drawBefore - 1] : undefined;
     const verdict = move.type === 'accuse' ? this.game.accuse(move.actorId, move.accusedId) : null;
     const applied = move.type === 'accuse' ? verdict !== null : applyBotMove(this.game, move);
     if (applied) {
+      if (move.type === 'drawCardFromDeck') {
+        const reveal = createDrawReveal(move.actorId, drawnTop, drawBefore, this.game.state.deck.length);
+        if (reveal) this.broadcastDrawReveal(reveal);
+      }
       if (verdict) this.broadcastVerdict(move.actorId, verdict);
       if (move.type === 'givePenaltyCard') this.announcePenaltyCard(move.receiverId, move.actorId);
       await this.saveGame();
@@ -392,9 +408,21 @@ export class PidorRoom extends DurableObject<Env> {
         emit(socket, 'actionError', 'Партию начинает ведущий стола');
       } else game.start();
     }
-    else if (type === 'drawTo' && typeof data.targetPlayerId === 'string') game.drawTo(id, data.targetPlayerId);
+    else if (type === 'drawTo' && typeof data.targetPlayerId === 'string') {
+      const before = game.state.deck.length;
+      const card = game.state.deck[before - 1];
+      game.drawTo(id, data.targetPlayerId);
+      const reveal = createDrawReveal(id, card, before, game.state.deck.length, data.targetPlayerId);
+      if (reveal) this.broadcastDrawReveal(reveal);
+    }
     else if (type === 'moveTopTo' && typeof data.targetPlayerId === 'string') game.moveTopTo(id, data.targetPlayerId);
-    else if (type === 'drawCardFromDeck') game.takeFromDeck(id);
+    else if (type === 'drawCardFromDeck') {
+      const before = game.state.deck.length;
+      const card = game.state.deck[before - 1];
+      game.takeFromDeck(id);
+      const reveal = createDrawReveal(id, card, before, game.state.deck.length);
+      if (reveal) this.broadcastDrawReveal(reveal);
+    }
     else if (type === 'takeFromPile' && typeof data.cardId === 'string') game.takeFromPile(id, data.cardId);
     else if (type === 'placeActiveCard' && typeof data.targetPlayerId === 'string') game.placeActiveCard(id, data.targetPlayerId);
     else if (type === 'givePenaltyCard' && typeof data.cardId === 'string' && typeof data.receiverId === 'string') {
