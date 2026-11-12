@@ -15,6 +15,7 @@ let verdictTimer: ReturnType<typeof setTimeout> | undefined;
 let revealTimer: ReturnType<typeof setTimeout> | undefined;
 let retry = 0;
 let intentionalDisconnect = false;
+let lifecycleInstalled = false;
 let joining: { name: string; room: string; options: JoinOptions } | null = null;
 
 export const useGameStore = defineStore('game', {
@@ -72,7 +73,17 @@ export const useGameStore = defineStore('game', {
       this.openWebSocket();
     },
     openWebSocket() {
-      if (!joining) return;
+      if (!joining || !navigator.onLine) return;
+      if (!lifecycleInstalled) {
+        lifecycleInstalled = true;
+        window.addEventListener('online', () => {
+          if (!intentionalDisconnect && joining && this.socket?.readyState !== WebSocket.OPEN) this.openWebSocket();
+        });
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && !intentionalDisconnect && joining
+            && this.socket?.readyState !== WebSocket.OPEN && navigator.onLine) this.openWebSocket();
+        });
+      }
       const { room, name, options } = joining;
       const prior = this.socket;
       if (prior) {
@@ -86,7 +97,6 @@ export const useGameStore = defineStore('game', {
       this.connected = false;
       ws.onopen = () => {
         if (this.socket !== ws) return;
-        retry = 0;
         this.connected = true;
         const initData = window.Telegram?.WebApp?.initData;
         const sessionToken = localStorage.getItem(sessionKey(room)) || undefined;
@@ -107,6 +117,7 @@ export const useGameStore = defineStore('game', {
         switch (message.type) {
           case 'joined': {
             const result = data as { playerId: string; sessionToken: string; name: string };
+            retry = 0;
             this.playerId = result.playerId;
             this.playerName = result.name;
             localStorage.setItem(sessionKey(room), result.sessionToken);
@@ -150,9 +161,9 @@ export const useGameStore = defineStore('game', {
         if (this.socket !== ws) return;
         clearInterval(pingTimer);
         this.connected = false;
-        if (!intentionalDisconnect && joining && retry < 15) {
+        if (!intentionalDisconnect && joining && navigator.onLine) {
           retry++;
-          reconnectTimer = setTimeout(() => this.openWebSocket(), Math.min(12_000, 600 * 1.5 ** retry));
+          reconnectTimer = setTimeout(() => this.openWebSocket(), Math.min(20_000, 700 * 1.65 ** Math.min(retry, 9)) + Math.random() * 350);
         }
       };
       ws.onerror = () => { if (this.socket === ws) this.lastError = 'Соединение прервано'; };
@@ -160,6 +171,7 @@ export const useGameStore = defineStore('game', {
     disconnect() {
       intentionalDisconnect = true;
       joining = null;
+      retry = 0;
       clearTimeout(reconnectTimer);
       clearInterval(pingTimer);
       this.socket?.close();
