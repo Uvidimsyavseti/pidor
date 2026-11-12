@@ -5,6 +5,7 @@ import { handleTelegram } from './telegram';
 import { LobbyDirectory } from './lobbyDirectory';
 import { createDrawReveal } from './drawReveal';
 import { visibleState } from './visibility';
+import { rememberAction, STATE_CHANGING_ACTIONS, type ActionHistory } from './actionReplay';
 import type { CardDrawReveal, GameState } from '../shared/types';
 
 interface Env {
@@ -53,17 +54,19 @@ export class PidorRoom extends DurableObject<Env> {
   private roomMode: 'friends' | 'bot' = 'friends';
   private roomId = '';
   private idleDeadline = 0;
+  private processedActions: ActionHistory = {};
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
-      const [snapshot, sessions, bots, mode, roomId, idleDeadline] = await Promise.all([
+      const [snapshot, sessions, bots, mode, roomId, idleDeadline, processedActions] = await Promise.all([
         ctx.storage.get<GameSnapshot>('game'),
         ctx.storage.get<Record<string, Session>>('sessions'),
         ctx.storage.get<string[]>('bots'),
         ctx.storage.get<'friends' | 'bot'>('roomMode'),
         ctx.storage.get<string>('roomId'),
-        ctx.storage.get<number>('idleDeadline')
+        ctx.storage.get<number>('idleDeadline'),
+        ctx.storage.get<ActionHistory>('processedActions')
       ]);
       if (snapshot) this.game.restore(snapshot);
       if (sessions) this.sessions = sessions;
@@ -71,6 +74,7 @@ export class PidorRoom extends DurableObject<Env> {
       if (mode) this.roomMode = mode;
       if (roomId) this.roomId = roomId;
       if (idleDeadline) this.idleDeadline = idleDeadline;
+      if (processedActions) this.processedActions = processedActions;
     });
     this.game.onPenalty = (playerId, reason) => {
       for (const socket of this.ctx.getWebSockets()) {
@@ -178,6 +182,7 @@ export class PidorRoom extends DurableObject<Env> {
     this.botIds = [];
     this.roomMode = 'friends';
     this.idleDeadline = 0;
+    this.processedActions = {};
     await this.ctx.storage.deleteAll();
     await this.ctx.storage.deleteAlarm();
   }
@@ -195,7 +200,10 @@ export class PidorRoom extends DurableObject<Env> {
   }
 
   private async saveGame(): Promise<void> {
-    await this.ctx.storage.put('game', this.game.snapshot());
+    await Promise.all([
+      this.ctx.storage.put('game', this.game.snapshot()),
+      this.ctx.storage.put('processedActions', this.processedActions)
+    ]);
   }
   private broadcastVerdict(accuserId: string, verdict: { correct: boolean; accusedId: string; penalizedId: string; reason: string }) {
     for (const socket of this.ctx.getWebSockets()) {
@@ -392,6 +400,14 @@ export class PidorRoom extends DurableObject<Env> {
         Date.now() < game.state.initialDealEndsAt &&
         ['drawTo','moveTopTo','drawCardFromDeck','takeFromPile','placeActiveCard'].includes(type || '')) {
       return emit(socket, 'actionError', 'Идёт начальная раздача');
+    }
+    // The client sends a unique ID for each user action. Suppress duplicate
+    // delivery after reconnect / rapid repeated taps, without blocking legacy
+    // clients that have an older cached bundle and omit the actionId.
+    if (type && STATE_CHANGING_ACTIONS.has(type) && data.actionId !== undefined) {
+      if (typeof data.actionId !== 'string' || !rememberAction(this.processedActions, id, data.actionId)) {
+        return emit(socket, 'actionError', 'Повторное или некорректное действие');
+      }
     }
     if (type === 'accusePlayer' && typeof data.accusedId === 'string') {
       const verdict = game.accuse(id, data.accusedId);
