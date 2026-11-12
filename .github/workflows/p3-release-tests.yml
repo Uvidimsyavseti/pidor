@@ -4,11 +4,13 @@ on:
     branches: [feature/p1-p2-telegram-table-ui]
     paths:
       - 'server/**'
+      - 'package.json'
       - 'shared/**'
       - '.github/workflows/p3-release-tests.yml'
   pull_request:
     paths:
       - 'server/**'
+      - 'package.json'
       - 'shared/**'
       - '.github/workflows/p3-release-tests.yml'
 jobs:
