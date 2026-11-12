@@ -479,3 +479,21 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 }
 .table__play-target--dragover .table__play-target-label {background:#d9ae66;color:#1d251f;border-style:solid;text-shadow:none;}
 @media(max-width:370px){.table__trump{right:3%!important;top:7%!important}.table__discard{right:5%!important;bottom:8%!important}.table__play-target-label{font-size:9px}}
+
+
+/* Six-player layout: give the top row room and keep the center clear for plays. */
+.table--six .table__seat--top-left {left:13%!important;top:6%!important;}
+.table--six .table__seat--top-center {left:50%!important;top:3%!important;}
+.table--six .table__seat--top-right {right:13%!important;top:6%!important;}
+.table--six .table__seat--left {left:3%!important;top:41%!important;}
+.table--six .table__seat--right {right:3%!important;top:41%!important;}
+.table--six .table__seat--self {bottom:2%!important;}
+.table--six {--seat-card-w:clamp(43px,11.8vw,56px);}
+.table--six .seat__identity {max-width:75px;}
+/* The animation layer must not retain GPU snapshots or old transforms. */
+.card-flight {contain:none!important;isolation:isolate;pointer-events:none!important;}
+.card-flight__body {transform-style:flat;backface-visibility:hidden;}
+@media(max-width:370px){
+ .table--six .table__seat--top-left{left:12%!important;}
+ .table--six .table__seat--top-right{right:12%!important;}
+}
