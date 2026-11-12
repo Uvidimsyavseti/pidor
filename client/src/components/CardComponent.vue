@@ -1,51 +1,38 @@
 <script setup lang="ts">
-import type { Card, Suit, Rank } from '@shared/types';
+import { computed, ref } from 'vue';
+import type { Card, Rank, Suit } from '@shared/types';
 
-const props = defineProps<{
-  card?: Card;
-  hidden?: boolean;
-  small?: boolean;
-}>();
+const props = withDefaults(defineProps<{ card?: Card; hidden?: boolean; small?: boolean; inert?: boolean }>(), {
+  hidden: false,
+  small: false,
+  inert: false,
+});
 
-const suitSymbols: Record<Suit, string> = {
-  hearts: '♥',
-  diamonds: '♦',
-  clubs: '♣',
-  spades: '♠'
-};
-
-const rankLabels: Record<Rank, string> = {
-  '6': '6', '7': '7', '8': '8', '9': '9', '10': '10', 'J': 'В', 'Q': 'Д', 'K': 'К', 'A': 'Т'
-};
-
-const suitColor = (suit: Suit) => (suit === 'hearts' || suit === 'diamonds' ? 'text-red-600' : 'text-slate-900');
+const failed = ref(false);
+const rankText: Record<Rank, string> = { '6': '6', '7': '7', '8': '8', '9': '9', '10': '10', J: 'В', Q: 'Д', K: 'К', A: 'Т' };
+const suitText: Record<Suit, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
+const suitCodes: Record<Suit, string> = { hearts: 'H', diamonds: 'D', clubs: 'C', spades: 'S' };
+const file = computed(() => {
+  if (props.hidden || !props.card) return '/cards/BACK_COMMON.webp';
+  const rank = /^[0-9]$/.test(props.card.rank) ? '0' + props.card.rank : props.card.rank === '10' ? '10' : props.card.rank;
+  return '/cards/' + rank + '_' + suitCodes[props.card.suit] + '.webp';
+});
+const red = computed(() => props.card?.suit === 'hearts' || props.card?.suit === 'diamonds');
 </script>
 
 <template>
-  <div 
-    class="relative rounded-xl border shadow-lg flex items-center justify-center font-bold bg-white select-none transition-all"
-    :class="[
-      small ? 'w-10 h-14 text-sm' : 'w-20 h-28 text-2xl',
-      hidden ? 'bg-gradient-to-br from-blue-700 to-blue-900 border-blue-400' : 'border-slate-200'
-    ]"
+  <div
+    class="playing-card"
+    :class="{ 'playing-card--small': small, 'playing-card--back': hidden, 'playing-card--red': red, 'playing-card--inert': inert }"
+    :data-card-id="card?.id"
+    aria-hidden="true"
   >
-    <template v-if="!hidden && card">
-      <!-- Top Left Rank Only -->
-      <div class="absolute top-1.5 left-2 leading-none text-[0.7rem] font-black uppercase" :class="suitColor(card.suit)">
-        {{ rankLabels[card.rank] }}
-      </div>
-      
-      <!-- Central Suit Icon (Exactly one) -->
-      <div :class="[suitColor(card.suit), small ? 'text-2xl' : 'text-5xl']" class="filter drop-shadow-sm">
-        {{ suitSymbols[card.suit] }}
-      </div>
-    </template>
-    
-    <!-- Card Back -->
-    <div v-else-if="hidden" class="w-full h-full flex items-center justify-center">
-       <div class="w-4/5 h-4/5 border border-blue-400/30 rounded-lg flex items-center justify-center">
-          <div class="text-blue-400/20 text-2xl font-black italic select-none">P</div>
-       </div>
+    <img v-if="!failed" :src="file" alt="" draggable="false" @error="failed = true" />
+    <div v-else-if="hidden || !card" class="playing-card__fallback-back"><i>✦</i></div>
+    <div v-else class="playing-card__fallback-front">
+      <b>{{ rankText[card.rank] }}</b>
+      <strong>{{ suitText[card.suit] }}</strong>
+      <b>{{ rankText[card.rank] }}</b>
     </div>
   </div>
 </template>
