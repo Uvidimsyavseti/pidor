@@ -24,7 +24,7 @@ function checkCards(game) {
   assert.equal(new Set(cards.map(c=>c.id)).size,36,'All cards have unique identities');
 }
 
-function runSolo(seed,botCount) {
+function runSolo(seed,botCount,underlaidCards=true) {
   const random=Math.random;
   Math.random=seeded(seed);
   try {
@@ -35,7 +35,7 @@ function runSolo(seed,botCount) {
       ...bots.map((id,i)=>({id,name:'Bot '+(i+1)}))
     ]);
     game.state.mode='bot';
-    game.start();
+    game.start(underlaidCards);
     checkCards(game);
     const phases=new Set(['DEALING']);
     const moves={human:0,bot:0};
@@ -64,11 +64,12 @@ function runSolo(seed,botCount) {
     assert.ok(phases.has('MAIN_GAME'),'Main game was reached');
     assert.ok(moves.bot>0 && moves.human>0,'Both bot and human performed actions');
     assert.equal(game.state.players.filter(p=>p.onDuty).length,1,'One player loses');
-    console.log('SOLO GAME PASSED '+JSON.stringify({seed,botCount,steps,phases:[...phases],moves,loser:game.state.players.find(p=>p.onDuty)?.name}));
+    console.log('SOLO GAME PASSED '+JSON.stringify({seed,botCount,underlaidCards,steps,phases:[...phases],moves,loser:game.state.players.find(p=>p.onDuty)?.name}));
   } finally { Math.random=random; }
 }
 
 runSolo(20261112,1);
 runSolo(1234567,2);
 runSolo(100820,3);
-console.log('PASS: solo bot strategy works with 1, 2 and 3 bots, 36-card integrity and ordered penalties');
+runSolo(606060,1,false);
+console.log('PASS: solo bot strategy works with 1, 2 and 3 bots, both underlaid modes, 36-card integrity and ordered penalties');
