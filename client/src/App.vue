@@ -108,9 +108,8 @@ const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBU
 const guidance = computed(() => {
   if (!state.value) return '';
   if (state.value.phase === 'DEALING') {
-    if (targeting.value) return 'Положи карту по масти на подходящую карту игрока по кругу или себе.';
-    if (isMyTurn.value) return 'Твоя очередь тянуть. Положи карту на подходящую масть по кругу.';
-    return 'Сейчас ходит ' + (turnPlayer.value?.name || 'другой игрок') + '. Следи за ходом и картами на столе.';
+    if (isMyTurn.value) return 'Перекинь подходящую верхнюю карту своей стопки, затем возьми новую из колоды.';
+    return 'Ход игрока ' + (turnPlayer.value?.name || '…');
   }
   if (state.value.phase === 'PENALTY_REVIEW') {
     return me.value?.isReady
@@ -428,7 +427,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
               :player="p" :is-me="false"
               :phase="state.phase"
               :is-turn="turnPlayer?.id === p.id"
-              :targetable="((targeting && dealTargets.some(target => target.id === p.id)) || (penaltyTargeting && penaltyTargets.some(target => target.id === p.id))) && !p.hasExited"
+              :targetable="(!!dragging || (penaltyTargeting && penaltyTargets.some(target => target.id === p.id))) && !p.hasExited"
               @click="handleSeatClick(p.id)" @card-click="handleCardClick"
             />
           </div>
@@ -442,16 +441,13 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
                   type="button" class="deck-button" :class="{ 'deck-button--available': canDraw, 'deck-button--risky': canDraw && riskyDraw }"
                   :disabled="!canDraw" aria-label="Вытянуть карту из колоды"
                   title="Вытянуть карту"
-                  :style="deckPointerStart ? { transform: 'translate(' + deckDragX + 'px,' + deckDragY + 'px) rotate(' + (deckDragX / 8) + 'deg)' } : {}"
-                  @pointerdown="beginDeckSwipe" @pointermove="moveDeckSwipe"
-                  @pointerup="endDeckSwipe" @pointercancel="cancelDeckSwipe"
-                  @click="clickDeck"
+                  @pointerdown.prevent="beginDrag($event, 'deck')"
                 >
                   <CardComponent v-if="state.deck.length" hidden />
                   <div v-else class="empty-slot">0</div>
                 </button>
                 <span class="slot-count">{{ state.deck.length }} карт</span>
-                <span v-if="canDraw" class="deck-swipe-hint">↑ СВАЙПНИ</span>
+                <span v-if="canDraw" class="deck-swipe-hint">ПЕРЕТАЩИ КАРТУ</span>
               </div>
 
               <div class="table-center__slot table-center__slot--trick">
@@ -490,7 +486,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
               </div>
             </div>
 
-            <div v-if="targeting" class="target-actions">
+            <div v-if="false" class="target-actions">
               <span>КУДА ПОЛОЖИТЬ КАРТУ?</span>
               <div class="target-actions__buttons">
                 <button v-for="p in dealTargets" :key="p.id" type="button" @click="handleSeatClick(p.id)">
@@ -509,6 +505,9 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
           </div>
         </div>
 
+        <div v-if="dragging" class="drag-ghost" :style="{left:dragging.x+'px',top:dragging.y+'px'}" aria-hidden="true">
+          <CardComponent :card="dragging.card || undefined" :hidden="dragging.kind === 'deck'" />
+        </div>
         <section class="player-dock">
           <div class="player-dock__actions">
             <div class="trump">
@@ -527,6 +526,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
           </div>
           <PlayerSeat v-if="me" :player="me" :is-me="true" :is-turn="isMyTurn"
             :phase="state.phase" :selected-card-id="selectedCard?.id"
+            :targetable="!!dragging" @drag-start="beginDrag($event, 'pile')"
             @card-click="handleCardClick" />
         </section>
 
@@ -1166,5 +1166,13 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
   .game-layout { overflow-y:auto; overscroll-behavior:contain; }
   .table-surface { min-height:320px; flex:0 0 auto; }
 }
+
+
+.deck-button--available { touch-action:none; cursor:grab; }
+.deck-button--available:active { cursor:grabbing; }
+.drag-ghost { position:fixed; z-index:350; width:75px; transform:translate(-50%,-50%) rotate(-9deg); pointer-events:none; filter:drop-shadow(0 12px 12px #000a); }
+.drag-ghost :deep(.playing-card) { --width:75px; }
+.seat--target { border-color:#eec17c; }
+@media(max-width:680px) { .drag-ghost{width:60px}.drag-ghost :deep(.playing-card){--width:60px} }
 
 </style>
