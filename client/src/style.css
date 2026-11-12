@@ -407,3 +407,14 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 @media(orientation:landscape) and (max-height:500px){
  .table__active--dealing:not(.table__active--drag),.table__active-anchor {left:65%;top:53%;}
 }
+
+/* Keep the dragged card in the same coordinate space as its table. */
+.table__active--drag {position:absolute!important;left:var(--drag-x)!important;top:var(--drag-y)!important;z-index:95;animation:none!important;transition:none!important;transform:translate(-50%,-50%) scale(1.035)!important;pointer-events:none;}
+.table__active--drag .playing-card {box-shadow:0 20px 36px #0009,0 0 0 2px #f1c36b99;}
+/* Turn indication is intentionally unmissable, but does not frame the player. */
+.seat--active .seat__identity {position:relative;color:#fff1bc;text-shadow:0 0 10px #eec76f,0 1px 3px #000;filter:drop-shadow(0 0 7px #e7ac49);}
+.seat--active .seat__name {color:#ffe5a2;font-weight:900;}
+.seat--active .seat__turn {font-size:15px;color:#ffe0a1;animation:turn-beacon 1.15s ease-in-out infinite;}
+.seat--active .seat__cards {filter:drop-shadow(0 0 11px #eec16b9c);}
+@keyframes turn-beacon {0%,100%{opacity:.7;transform:scale(.85)}50%{opacity:1;transform:scale(1.25)}}
+@media(prefers-reduced-motion:reduce){.seat--active .seat__turn{animation:none}}
