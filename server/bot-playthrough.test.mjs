@@ -72,4 +72,5 @@ runSolo(20261112,1);
 runSolo(1234567,2);
 runSolo(100820,3);
 runSolo(606060,1,false);
-console.log('PASS: solo bot strategy works with 1, 2 and 3 bots, both underlaid modes, 36-card integrity and ordered penalties');
+runSolo(20260423,5);
+console.log('PASS: solo bot strategy works with 1, 2, 3 and 5 bots, both underlaid modes, 36-card integrity and ordered penalties');
