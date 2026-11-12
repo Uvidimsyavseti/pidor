@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import type { Player, Card } from '@shared/types';
 import CardComponent from './CardComponent.vue';
+import HandFan from './HandFan.vue';
 
 const props = defineProps<{
   player: Player;
@@ -16,11 +17,13 @@ const props = defineProps<{
   flyingCardId?: string | null;
   incomingCard?: Card | null;
   incomingCount?: number;
+  previewCardId?: string | null;
 }>();
 const emit = defineEmits<{
   cardClick: [payload: { card: Card; ownerId: string }];
   click: [];
   dragStart: [event: PointerEvent];
+  handDragStart: [event: PointerEvent, card: Card];
 }>();
 
 const handExpanded = ref(false);
@@ -91,7 +94,7 @@ function selectCard(card: Card) {
 
     <template v-else>
       <div class="seat__mine">
-        <div class="seat__hand-heading">
+        <div v-if="phase === 'PENALTY_DISTRIBUTION'" class="seat__hand-heading">
           <div class="seat__hand-title">
             <span class="seat__section-label">{{ ['DEALING','PENALTY_REVIEW'].includes(phase) ? '' : 'ВАШИ КАРТЫ' }}</span>
             <span class="seat__hand-count">{{ ['DEALING','PENALTY_REVIEW'].includes(phase) ? player.stumps.length : player.hand.length }} карт</span>
@@ -113,7 +116,7 @@ function selectCard(card: Card) {
             <div :key="player.stumps[player.stumps.length - 1]?.id" class="seat__stack-layer seat__stack-layer--top"
               :class="{ 'seat__stack-layer--moving': player.stumps[player.stumps.length - 1]?.id === flyingCardId }">
               <button
-                v-if="player.stumps.length > (underlaidCards === false ? 0 : 3) && isTurn"
+                v-if="player.stumps.length > (underlaidCards === false ? 1 : 3) && isTurn"
                 type="button"
                 class="seat__card-button seat__stack-button"
                 :aria-label="'Передать верхнюю карту ' + player.stumps[player.stumps.length - 1]?.rank + ' ' + player.stumps[player.stumps.length - 1]?.suit"
@@ -126,15 +129,21 @@ function selectCard(card: Card) {
           <div v-else class="seat__empty-pile" aria-label="Пустая стопка"></div>
         </div>
 
-        <div v-else class="seat__play-area" :class="{ 'seat__play-area--no-reserve': !player.stumps.length }">
+        <div v-else class="seat__play-area" :class="{ 'seat__play-area--no-reserve': !player.stumps.length, 'seat__play-area--fan': phase === 'MAIN_GAME' }">
           <div v-if="player.stumps.length" class="seat__reserved">
-            <span class="seat__section-label">СТОПКА · {{ player.stumps.length }}</span>
+            <span v-if="phase !== 'MAIN_GAME'" class="seat__section-label">СТОПКА · {{ player.stumps.length }}</span>
             <div class="seat__reserved-cards">
               <CardComponent v-if="player.stumps.length > 1" hidden small />
               <CardComponent v-if="player.stumps.length" hidden small />
             </div>
           </div>
-          <div
+          <HandFan v-if="phase === 'MAIN_GAME'"
+            :cards="player.hand" :enabled="isTurn && !player.hasExited"
+            :preview-id="previewCardId" :moving-card-id="flyingCardId"
+            :selected-card-id="selectedCardId"
+            @drag-start="(event,card) => emit('handDragStart',event,card)"
+            @play="selectCard" />
+          <div v-else
             id="my-cards-area"
             class="seat__hand-scroll"
             :class="{ 'seat__hand-scroll--expanded': handExpanded }"
@@ -370,6 +379,29 @@ function selectCard(card: Card) {
 @media(prefers-reduced-motion:reduce) {
   .seat--aimed .seat__pile :deep(.playing-card),
   .seat--aimed .seat__stack :deep(.playing-card){transition:none;transform:none;}
+}
+
+
+/* P1 — Hand is the primary control, not a boxed horizontal strip. */
+.seat--me .seat__play-area--fan {
+  overflow:visible;position:relative;width:100%;height:100%;
+  justify-content:center;align-items:stretch;
+}
+.seat--me .seat__play-area--fan > .hand-fan{min-width:0;flex:1;}
+.seat--me .seat__reserved{
+  position:absolute;z-index:2;left:3px;top:5px;
+  width:auto;max-width:50px;
+  align-items:flex-start;opacity:.76;pointer-events:none;
+}
+.seat--me .seat__reserved-cards :deep(.playing-card) {--width:26px!important;}
+.seat--me .seat__reserved-cards {max-width:50px;}
+.seat--me .seat__mine{overflow:visible;}
+.seat--me .seat__identity{flex:0 0 auto;justify-content:center;gap:12px;}
+.seat--me .seat__info{flex:0 1 auto;}
+.seat--me .seat__penalties{font-size:12px;color:#f0ca93;}
+@media(max-width:430px) {
+ .seat--me .seat__reserved{left:0;top:1px;}
+ .seat--me .seat__reserved-cards :deep(.playing-card){--width:22px!important;}
 }
 
 </style>
