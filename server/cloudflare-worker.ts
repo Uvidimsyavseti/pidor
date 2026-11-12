@@ -322,7 +322,7 @@ export class PidorRoom extends DurableObject<Env> {
         this.roomMode = 'bot';
         createdBotRoom = true;
         const requested = typeof payload.botCount === 'number' ? payload.botCount : 1;
-        const count = Math.max(1, Math.min(3, Math.floor(requested || 1)));
+        const count = Math.max(1, Math.min(5, Math.floor(requested || 1)));
         for (let n = 0; n < count; n++) {
           const id = 'bot-' + crypto.randomUUID();
           this.botIds.push(id);
