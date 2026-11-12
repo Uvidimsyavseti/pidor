@@ -126,12 +126,42 @@ function showToast(text: string) {
   alertText.value = text;
   toastTimeout = setTimeout(() => { alertText.value = ''; }, 2000);
 }
-function join() {
-  const playerName = name.value.trim();
-  if (!playerName || !room.value.trim()) return;
-  game.joinRoom(playerName, room.value.trim());
+function joinRoom(id: string, opts: { mode?: 'friends' | 'bot'; botCount?: number; underlaidCards?: boolean } = {}) {
+  if (!name.value.trim()) { showToast('Введи имя'); return; }
+  if (!/^[a-zA-Z0-9_-]{1,48}$/.test(id)) { showToast('Неверный код комнаты'); return; }
+  room.value = id;
+  game.joinRoom(name.value.trim(), id, opts);
   joined.value = true;
+  localStorage.setItem('pidor:name', name.value.trim());
+  history.replaceState(null, '', '?room=' + encodeURIComponent(id));
   tone('turn');
+}
+function join() { joinRoom(room.value.trim(), { mode: 'friends', underlaidCards: underlaid.value }); }
+function playBots() {
+  const id = 'bot_' + crypto.randomUUID().replace(/-/g, '').slice(0, 14);
+  joinRoom(id, { mode: 'bot', botCount: bots.value, underlaidCards: underlaid.value });
+}
+async function createRoom() {
+  if (!name.value.trim()) { showToast('Введи имя'); return; }
+  const table = await game.createTable({
+    title: tableTitle.value, visibility: publicRoom.value ? 'public' : 'private',
+    underlaidCards: underlaid.value,
+  });
+  if (!table) { showToast(game.lastError || 'Ошибка создания стола'); return; }
+  joinRoom(table.id, { mode: 'friends', underlaidCards: table.underlaidCards });
+}
+function backToLobby() {
+  game.disconnect();
+  joined.value = false;
+  selectedPenalty.value = null;
+  history.replaceState(null, '', location.pathname);
+  void game.fetchTables();
+}
+function accuseSelected() {
+  if (!selectedAccused.value) return showToast('Выбери подозреваемого');
+  const id = selectedAccused.value;
+  dispatchOnce('accuse:' + id, () => game.accusePlayer(id));
+  selectedAccused.value = null;
 }
 function dispatchOnce(key: string, send: () => void) {
   if (pending.value || animationLocked.value) return;
@@ -155,7 +185,7 @@ function placeCard(targetId: string) {
 function handleSeatCard({ card, ownerId }: { card: Card; ownerId: string }) {
   if (currentPhase.value === 'DEALING') {
     if (active.value) return placeCard(ownerId);
-    if (!isMyTurn.value || ownerId !== me.value?.id || protectedIds.value.has(card.id)) return;
+    if (!isMyTurn.value || ownerId !== me.value?.id || protectedIds.value.has(card.id) || (me.value?.stumps.length || 0) <= (state.value?.underlaidCards === false ? 1 : 3)) return;
     dispatchOnce('take:' + card.id, () => game.takeFromPile(card.id));
   } else if (currentPhase.value === 'PENALTY_DISTRIBUTION' && ownerId === me.value?.id) {
     selectedPenalty.value = card;
@@ -163,12 +193,14 @@ function handleSeatCard({ card, ownerId }: { card: Card; ownerId: string }) {
   }
 }
 function handleSeatClick(targetId: string) {
-  if (currentPhase.value === 'DEALING' && active.value) placeCard(targetId);
+  if (currentPhase.value === 'DEALING' && active.value) { placeCard(targetId); return; }
   if (currentPhase.value === 'PENALTY_DISTRIBUTION' && selectedPenalty.value) {
     const card = selectedPenalty.value;
     dispatchOnce('penalty:' + card.id, () => game.givePenaltyCard(card.id, targetId));
     selectedPenalty.value = null;
+    return;
   }
+  if (targetId !== game.playerId) selectedAccused.value = targetId;
 }
 function drawDeck() {
   if (!canDraw.value) return;
