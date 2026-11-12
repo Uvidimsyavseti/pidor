@@ -106,7 +106,7 @@ export class PidorGame {
     const p = this.state.players.find(p => p.id === playerId);
     const top = p?.stumps.at(-1);
     return this.state.phase === 'DEALING' && !!top &&
-      p!.stumps.length > 3 && !this.lockedDrawCards.includes(top.id);
+      p!.stumps.length > 1 && !this.lockedDrawCards.includes(top.id);
   }
 
   private getPlayerIdx(id: string) { return this.state.players.findIndex(p => p.id === id); }
@@ -228,7 +228,7 @@ export class PidorGame {
       if (this.state.activeCard.ownerId === actorId) this.addPenalty(idx, 'Пытается вытянуть вторую карту');
       return false;
     }
-    if (!outOfTurn) {
+    if (!outOfTurn && this.canMoveTopCard(actorId)) {
       const targetIdx = this.findOtherBeatTarget(idx);
       if (targetIdx !== -1) this.addPenalty(idx, 'Не кинул свою карту на ' + this.state.players[targetIdx].name);
     }
@@ -273,7 +273,7 @@ export class PidorGame {
     if (idx !== this.state.turnIndex) return false;
 
     const p = this.state.players[idx];
-    if (p.stumps.length <= 3) return false; // Starting card stays
+    if (p.stumps.length <= 1) return false; // Retain one anchor card
     
     const top = p.stumps[p.stumps.length - 1];
     if (top.id !== cardId || this.lockedDrawCards.includes(cardId)) return false;
