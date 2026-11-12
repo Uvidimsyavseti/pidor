@@ -40,7 +40,7 @@ const faceName: Partial<Record<Rank, string>> = {
   >
     <template v-if="cardPackAvailable && !artworkError">
       <img :src="picture" class="playing-card__art" :alt="hidden ? 'Рубашка' : (card?.rank || '') + ' ' + (card ? suitSymbol[card.suit] : '')"
-        draggable="false" loading="lazy" decoding="async" @error="artworkError = true" />
+        draggable="false" loading="eager" decoding="async" @error="artworkError = true" />
     </template>
     <template v-else-if="!hidden && card">
       <span class="playing-card__corner">
