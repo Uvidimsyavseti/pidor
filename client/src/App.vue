@@ -195,6 +195,7 @@ function joinRoom(id: string, opts: { mode?: 'friends' | 'bot'; botCount?: numbe
   game.joinRoom(name.value.trim(), id, opts);
   joined.value = true;
   localStorage.setItem('pidor:name', name.value.trim());
+  localStorage.setItem('pidor:last-room', id);
   window.history.replaceState(null, '', '?room=' + encodeURIComponent(id));
   tone('turn');
 }
@@ -555,12 +556,12 @@ onMounted(() => {
   name.value = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || localStorage.getItem('pidor:name') || '';
   const query = new URLSearchParams(location.search);
   if (query.get('mode') === 'bot') uiTab.value = 'bots';
-  const requestRoom = query.get('room');
+  const requestRoom = query.get('room') || localStorage.getItem('pidor:last-room');
   if (requestRoom && /^[A-Za-z0-9_-]{1,48}$/.test(requestRoom)) {
     room.value = requestRoom;
     uiTab.value = 'code';
     if (name.value.trim() && localStorage.getItem('pidor:session:' + requestRoom)) {
-      joinRoom(requestRoom, { mode: 'friends' });
+      joinRoom(requestRoom);
     }
   }
   void game.fetchTables();
@@ -741,8 +742,8 @@ onBeforeUnmount(() => {
           <button v-if="['DEALING', 'PENALTY_REVIEW', 'MAIN_GAME'].includes(state.phase)" class="action-pill action-pill--quiet" @click="accuseSelected" :disabled="!selectedAccused">☠ ПОХУЁВАЯ! {{ selectedAccused ? state.players.find(p => p.id === selectedAccused)?.name : '' }}</button>
           <button v-if="state.phase === 'PENALTY_REVIEW'" class="action-pill action-pill--quiet" @click="game.finishReview()">Продолжить <span v-if="reviewSeconds">· {{ reviewSeconds }}с</span></button>
           <button v-if="state.phase === 'MAIN_GAME' && isMyTurn && state.currentTrick.length" class="action-pill" @click="game.takeTrick()">Забрать</button>
-          <button v-if="me && !me.hand.length && me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill" @click="game.takeStumps()">Беру пеньки</button>
-          <button v-if="me && !me.hand.length && !me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill action-pill--quiet" @click="game.exitGame()">Выйти</button>
+          <button v-if="me && state.underlaidCards !== false && !me.hand.length && me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill" @click="game.takeStumps()">Беру пеньки</button>
+          <button v-if="me && !me.hand.length && (!me.stumps.length || state.underlaidCards === false) && state.phase === 'MAIN_GAME'" class="action-pill action-pill--quiet" @click="game.exitGame()">Выйти</button>
         </div>
         <div v-if="me" class="hand-area__label">{{ handLabel }}</div>
         <HandFan v-if="me && ['MAIN_GAME', 'PENALTY_DISTRIBUTION'].includes(state.phase)" :cards="me.hand"
