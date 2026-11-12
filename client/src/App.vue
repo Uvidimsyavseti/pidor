@@ -71,6 +71,7 @@ function burst(kind: 'draw' | 'play' | 'penalty', x: number, y: number) {
 const hiddenIds = ref<Set<string>>(new Set());
 const protectedIds = ref<Set<string>>(new Set());
 const activeFlightId = ref<string | null>(null);
+const landingSeatId = ref<string | null>(null);
 const deckGestureId = ref<number | null>(null);
 const deckGestureHeld = ref(false);
 const activeDragging = ref(false);
@@ -348,13 +349,13 @@ function enqueueFlight(card: Card, targetId: string | null, faceUp: boolean, ori
   return next;
 }
 async function flyCard(card: Card, targetId: string | null, faceUp: boolean, originSeatId?: string) {
-  const from = originSeatId ? getCenter(document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .seat__cards'), deckPoint()) : deckPoint();
+  const from = originSeatId === '__active__' ? getCenter(document.querySelector('.table__active .playing-card') ?? document.querySelector('.table__active-anchor'), deckPoint()) : originSeatId ? getCenter(document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .seat__cards'), deckPoint()) : deckPoint();
   const target = targetId
     ? document.querySelector('[data-seat-id="' + CSS.escape(targetId) + '"] .seat__cards')
     : document.querySelector('.table__active-anchor');
   const to = getCenter(target, { x: window.innerWidth / 2 - 42, y: window.innerHeight / 2 - 59 });
   // Match the real card size at both ends; never shrink to a hard-coded .59.
-  const sourceCard = originSeatId
+  const sourceCard = originSeatId === '__active__' ? document.querySelector('.table__active .playing-card') : originSeatId
     ? document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .playing-card')
     : deckRef.value?.querySelector('.playing-card');
   const targetCard = targetId
@@ -367,7 +368,7 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
   await nextTick();
   const element = flightRef.value;
   if (!element) { flight.value = null; return; }
-  const ms = reducedMotion ? 70 : (targetId ? 390 : 490);
+  const ms = reducedMotion ? 70 : (targetId ? 560 : 490);
   // A card moves along a shallow arc with a continuously interpolated size.
   // Both endpoints match the real DOM card, so no scale pop on landing.
   const start = Math.max(.3, sourceScale);
@@ -439,6 +440,27 @@ watch(state, (value, old) => {
     }
     protectedIds.value = locked;
     if (sequence.length) void replayInitialDeal(sequence);
+  }
+  // Animate every confirmed card placement, including moves made by bots.
+  // The destination card stays hidden until the travelling card lands.
+  if (value.phase === 'DEALING' && old?.phase === 'DEALING' && !(value.initialDealEndsAt && Date.now() < value.initialDealEndsAt)) {
+    const previousIds = new Set(old.players.flatMap(p => p.stumps.map(c => c.id)));
+    for (const player of value.players) {
+      for (const card of player.stumps) {
+        if (previousIds.has(card.id)) continue;
+        // Special reveals have a dedicated animation, handled by lastReveal.
+        if (game.lastReveal?.card.id === card.id) continue;
+        const owner = old.activeCard?.card.id === card.id ? '__active__' : undefined;
+        hiddenIds.value = new Set([...hiddenIds.value, card.id]);
+        landingSeatId.value = player.id;
+        void enqueueFlight(card, player.id, true, owner).finally(() => {
+          const next = new Set(hiddenIds.value);
+          next.delete(card.id);
+          hiddenIds.value = next;
+          if (landingSeatId.value === player.id) landingSeatId.value = null;
+        });
+      }
+    }
   }
   if (value.activeCard?.card.id && value.activeCard.card.id !== old?.activeCard?.card.id) {
     // The deck pointer may have been released before the server confirmed the draw.
@@ -611,7 +633,7 @@ onBeforeUnmount(() => {
           v-for="entry in seats"
           :key="entry.player.id"
           class="table__seat"
-          :class="['table__seat--' + entry.slot, { 'table__seat--target': dragTarget === entry.player.id || (state.phase === 'PENALTY_DISTRIBUTION' && state.pendingPenaltyTurn?.receiverId === entry.player.id) }]"
+          :class="['table__seat--' + entry.slot, { 'table__seat--target': landingSeatId === entry.player.id || dragTarget === entry.player.id || (state.phase === 'PENALTY_DISTRIBUTION' && state.pendingPenaltyTurn?.receiverId === entry.player.id) }]"
         >
           <PlayerSeat
             :player="entry.player"
