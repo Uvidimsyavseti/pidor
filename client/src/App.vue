@@ -180,9 +180,6 @@ function readyReview() {
   haptic();
   gameStore.finishReview();
 }
-function drawCard() {
-  if (canDraw.value) { haptic(); playSound('draw'); gameStore.drawCardFromDeck(); }
-}
 function beginDrag(event: PointerEvent, kind: 'deck' | 'pile') {
   if (state.value?.phase !== 'DEALING' || state.value.activeCard) return;
   if (kind === 'deck' && !canDraw.value) return;
