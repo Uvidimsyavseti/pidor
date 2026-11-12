@@ -117,7 +117,6 @@ const trumpSymbol = computed(() => {
 const trumpIsRed = computed(() => ['hearts','diamonds'].includes(state.value?.trumpSuit || ''));
 const canDraw = computed(() => state.value?.phase === 'DEALING'
   && !!state.value.deck.length && !state.value.activeCard && !deckRequestPending.value);
-const riskyDraw = computed(() => state.value?.phase === 'DEALING' && !isMyTurn.value);
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 // The user may drop on ANY seat. Only the first eligible target gets a
@@ -145,36 +144,6 @@ function isRecommendedTarget(playerId: string): boolean {
 const myPenaltyTurn = computed(() => state.value?.pendingPenaltyTurn?.giverId === gameStore.playerId);
 const penaltyTargets = computed(() => myPenaltyTurn.value ? others.value.filter(p => p.id === state.value?.pendingPenaltyTurn?.receiverId) : []);
 const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null && penaltyTargets.value.length > 0);
-const guidance = computed(() => {
-  if (!state.value) return '';
-  if (state.value.phase === 'DEALING') {
-    if (isMyTurn.value) return 'Перекинь подходящую верхнюю карту своей стопки, затем возьми новую из колоды.';
-    return 'Ход игрока ' + (turnPlayer.value?.name || '…');
-  }
-  if (state.value.phase === 'PENALTY_REVIEW') {
-    return me.value?.isReady
-      ? 'Разбор длится максимум 15 секунд. Ждём завершения или решения остальных.'
-      : 'Вспомните нарушения. Назови нарушителя кнопкой «ПОХУЁВАЯ!» или закончи разбор.';
-  }
-  if (state.value.phase === 'PENALTY_DISTRIBUTION') {
-    if (!myPenaltyTurn.value) {
-      const giver = state.value.players.find(p => p.id === state.value?.pendingPenaltyTurn?.giverId);
-      const receiver = state.value.players.find(p => p.id === state.value?.pendingPenaltyTurn?.receiverId);
-      return giver ? 'Сейчас ' + giver.name + ' выдаёт похуёвую игроку ' + (receiver?.name || '…') : 'Ожидаем следующую штрафную карту.';
-    }
-    return selectedCard.value
-      ? 'Передайте выбранную карту игроку, которому вы должны штраф.'
-      : 'Выберите карту из руки. Штраф нужно передать отмеченным игрокам.';
-  }
-  if (state.value.phase === 'MAIN_GAME') {
-    if (canTakeStumps.value) return 'Основные карты закончились — пора взять похуёвые.';
-    if (canExitGame.value) return 'Все карты вышли. Можно закончить игру.';
-    if (isMyTurn.value) return 'Побейте верхнюю карту той же мастью или козырем. Можно забрать нижнюю.';
-    return 'Ход игрока ' + (turnPlayer.value?.name || '…');
-  }
-  if (state.value.phase === 'ENDED') return 'Партия завершена. Чтобы сыграть ещё, откройте новую комнату.';
-  return 'Соберите компанию: для начала нужны хотя бы двое.';
-});
 const loser = computed(() => state.value?.players.find(p => !p.hasExited));
 
 function haptic() { tg?.HapticFeedback?.impactOccurred?.('light'); }
@@ -498,7 +467,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                 :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
                 :is-turn="turnPlayer?.id === others[3].id" :recommended="isRecommendedTarget(others[3].id)"
                 :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
-                  (penaltyTargeting && penaltyTargets.some(t => t.id === others[3].id))) && !others[3].hasExited"
+                  (penaltyTargeting && penaltyTargets.some(t => t.id === others[3]?.id))) && !others[3].hasExited"
                 @click="handleSeatClick(others[3].id)" @card-click="handleCardClick"
               />
             </div>
@@ -536,7 +505,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
                 :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
                 :is-turn="turnPlayer?.id === others[4].id" :recommended="isRecommendedTarget(others[4].id)"
                 :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
-                  (penaltyTargeting && penaltyTargets.some(t => t.id === others[4].id))) && !others[4].hasExited"
+                  (penaltyTargeting && penaltyTargets.some(t => t.id === others[4]?.id))) && !others[4].hasExited"
                 @click="handleSeatClick(others[4].id)" @card-click="handleCardClick"
               />
             </div>
