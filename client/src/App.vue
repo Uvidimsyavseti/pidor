@@ -66,7 +66,7 @@ function burst(kind: 'draw' | 'play' | 'penalty', x: number, y: number) {
   if (reducedMotion) return;
   const id = ++vfxSerial;
   vfx.value = { id, x, y, kind };
-  setTimeout(() => { if (vfx.value?.id === id) vfx.value = null; }, 650);
+  setTimeout(() => { if (vfx.value?.id === id) vfx.value = null; }, 530);
 }
 const hiddenIds = ref<Set<string>>(new Set());
 const protectedIds = ref<Set<string>>(new Set());
@@ -220,6 +220,9 @@ function backToLobby() {
 function accuseSelected() {
   if (!selectedAccused.value) return showToast('Выбери подозреваемого');
   const id = selectedAccused.value;
+  showToast('☠ ПОХУЁВАЯ!');
+  tone('penalty');
+  burst('penalty', window.innerWidth / 2, window.innerHeight * .44);
   dispatchOnce('accuse:' + id, () => game.accusePlayer(id));
   selectedAccused.value = null;
 }
@@ -236,8 +239,9 @@ function playCard(card: Card) {
   dispatchOnce('play:' + card.id, () => game.playCard(card.id));
 }
 function placeCard(targetId: string) {
-  if (!active.value || !isMyTurn.value || animationLocked.value) return;
+  if (!active.value || !isMyTurn.value || (animationLocked.value && currentPhase.value !== 'DEALING')) return;
   tone('drop');
+  burst('play', dragPoint.value.x || window.innerWidth / 2, dragPoint.value.y || window.innerHeight / 2);
   dispatchOnce('place:' + active.value.card.id, () => game.placeActiveCard(targetId));
   activeDragging.value = false;
   dragTarget.value = null;
@@ -286,7 +290,7 @@ function onDeckDown(e: PointerEvent) {
   e.preventDefault();
 }
 function onActiveDown(e: PointerEvent) {
-  if (!active.value || !isMyTurn.value || animationLocked.value) return;
+  if (!active.value || !isMyTurn.value || (animationLocked.value && currentPhase.value !== 'DEALING')) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   deckGestureId.value = e.pointerId;
   deckGestureHeld.value = false;
@@ -306,7 +310,14 @@ function movePointer(e: PointerEvent) {
 }
 function endPointer(e: PointerEvent) {
   if (e.pointerId !== deckGestureId.value) return;
-  if (activeDragging.value && dragTarget.value) placeCard(dragTarget.value);
+  if (activeDragging.value) {
+    const seat = document.elementsFromPoint(e.clientX, e.clientY)
+      .map(el => (el as HTMLElement).closest<HTMLElement>('[data-seat-id]'))
+      .find((el): el is HTMLElement => Boolean(el));
+    const target = dragTarget.value || seat?.dataset.seatId;
+    if (target) placeCard(target);
+    else if (active.value) showToast('Отпусти карту на игроке или нажми на его карты');
+  }
   deckGestureHeld.value = false;
   deckGestureId.value = null;
   activeDragging.value = false;
@@ -340,10 +351,10 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
   const element = flightRef.value;
   if (!element) { flight.value = null; return; }
   element.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(.87)';
-  const ms = reducedMotion ? 70 : 340;
+  const ms = reducedMotion ? 70 : 420;
   const motion = element.animate([
     { transform: 'translate(' + from.x + 'px,' + from.y + 'px) scale(.87) rotate(-5deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
-    { transform: 'translate(' + ((from.x + to.x) / 2) + 'px,' + ((from.y + to.y) / 2 - 30) + 'px) scale(1.09) rotate(2deg)', filter: 'drop-shadow(0 14px 10px #0008)', offset: .48 },
+    { transform: 'translate(' + ((from.x + to.x) / 2) + 'px,' + ((from.y + to.y) / 2 - 30) + 'px) scale(1.09) rotate(2deg)', filter: 'drop-shadow(0 14px 10px #0008)', offset: .44 },
     { transform: 'translate(' + to.x + 'px,' + to.y + 'px) scale(.59) rotate(0deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
   ], { duration: ms, easing: 'cubic-bezier(.2,.7,.25,1)', fill: 'forwards' });
   if (faceUp) {
@@ -399,6 +410,11 @@ watch(state, (value, old) => {
     if (sequence.length) void replayInitialDeal(sequence);
   }
   if (value.activeCard?.card.id && value.activeCard.card.id !== old?.activeCard?.card.id) {
+    // The deck pointer may have been released before the server confirmed the draw.
+    // Never keep the drawn card in a phantom drag state.
+    deckGestureHeld.value = false;
+    activeDragging.value = false;
+    dragTarget.value = null;
     activeFlightId.value = value.activeCard.card.id;
     void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
       activeFlightId.value = null;
