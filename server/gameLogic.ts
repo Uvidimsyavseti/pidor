@@ -71,6 +71,7 @@ export class PidorGame {
       trumpSuit: null,
       attackerId: null,
       currentTrick: [],
+      trickTargetId: null,
       discardPile: [],
       turnIndex: 0,
       lastDrawnPlayerIdx: null,
@@ -427,6 +428,7 @@ export class PidorGame {
     this.reviewDeadlineAt = 0;
     this.penaltyQueue = [];
     this.state.phase = 'MAIN_GAME';
+    this.state.trickTargetId = null;
     this.state.turnIndex = ((this.state.lastDrawnPlayerIdx ?? -1) + 1) % this.state.players.length;
     while (this.state.players[this.state.turnIndex].hasExited) this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
   }
@@ -444,7 +446,9 @@ export class PidorGame {
     if (this.isLegalMove(card, target)) {
       player.hand.splice(cIdx, 1);
       this.state.currentTrick.push(card);
+      // Each played card is placed in front of the next player clockwise.
       this.advanceTurn();
+      this.state.trickTargetId = this.state.players[this.state.turnIndex]?.id || null;
       this.checkTrickCompletion();
     } else this.addPenalty(idx, "Не бьет");
   }
@@ -470,6 +474,7 @@ export class PidorGame {
     if (idx !== this.state.turnIndex || this.state.currentTrick.length === 0) return;
     this.state.players[idx].hand.push(this.state.currentTrick.shift()!);
     this.advanceTurn();
+    this.state.trickTargetId = this.state.currentTrick.length ? this.state.players[this.state.turnIndex]?.id || null : null;
   }
 
   takeStumps(playerId: string) {
@@ -506,6 +511,7 @@ export class PidorGame {
     if (this.state.currentTrick.length === count) {
       this.state.discardPile.push(...this.state.currentTrick);
       this.state.currentTrick = [];
+      this.state.trickTargetId = null;
     }
   }
 }
