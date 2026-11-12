@@ -380,3 +380,42 @@
   .game-board__trump {font-size:9px;gap:4px;}
   .game-board__trump strong {font-size:19px;}
 }
+
+
+/* Minimal indicators: no trump tile, no central "place for cards" slot. */
+.game-board__deck-zone{position:relative;}
+.game-board__trump-mark{
+  position:relative;display:block;align-self:center;
+  padding:0;background:none;border:0;border-radius:0;box-shadow:none;
+  font:bold 32px/1 Georgia,serif;color:#e9d9b2;
+  text-shadow:0 2px 5px #0a2614;pointer-events:none;
+}
+.game-board__deck-zone:has(.game-board__deck) .game-board__trump-mark{
+  position:absolute;left:calc(100% + 5px);bottom:13px;
+  font-size:26px;
+}
+.game-board__trump-mark--red{color:#df9f91;}
+.game-board__action-zone{min-height:0;padding:0;}
+.game-board__action-stack{
+  width:auto;height:auto;min-height:0;
+  border:0;background:transparent;border-radius:0;
+  box-shadow:none;overflow:visible;
+}
+.game-board__active-card :deep(.playing-card){--width:clamp(48px,7vw,70px)!important;}
+.game-board__footer{
+  justify-content:flex-start;min-height:12px;
+  font-size:9px;color:rgba(232,211,168,.66);
+  padding:0 6px;border:0;background:none;
+}
+.game-board__discard-count{font-size:9px;font-weight:700;letter-spacing:.025em;}
+/* Compact card labels rather than panels or borders. */
+.game-board__top-seats,.game-board__side{overflow:visible;}
+.game-board__top-seats>.seat,.game-board__side>.seat{overflow:visible;}
+@media(max-width:430px){
+  .game-board__trump-mark{font-size:26px;}
+  .game-board__deck-zone:has(.game-board__deck) .game-board__trump-mark{font-size:21px;bottom:10px;}
+}
+@media(max-height:680px){
+  .game-board__trump-mark{font-size:23px;}
+  .game-board__deck-zone:has(.game-board__deck) .game-board__trump-mark{font-size:19px;}
+}
