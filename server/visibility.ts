@@ -17,7 +17,8 @@ export function visibleState(state: GameState, viewerId: string): GameState {
       player.hand = original.hand.map((_, i) => concealed('hand-' + i));
     }
     player.stumps = original.stumps.map((card, i) =>
-      state.phase === 'DEALING' && i === original.stumps.length - 1 &&
+      (state.phase === 'DEALING' || state.phase === 'PENALTY_REVIEW') &&
+        i === original.stumps.length - 1 &&
         i >= (state.underlaidCards === false ? 0 : 2)
         ? card : concealed('stumps-' + player.id + '-' + i));
     return player;
