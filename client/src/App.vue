@@ -385,10 +385,10 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
             <div><small>КОД ПРИГЛАШЕНИЯ</small><strong>{{ gameStore.roomId }}</strong></div>
             <button type="button" @click="invite">{{ copied ? '✓ СКОПИРОВАНО' : '↗ ПРИГЛАСИТЬ' }}</button>
           </div>
-          <button v-if="state.players.length >= 2 && isHost" class="main-button" type="button" @click="gameStore.startGame(); playSound('shuffle')">НАЧАТЬ ПАРТИЮ <span>✦</span></button>
-          <button v-else-if="state.players.length >= 2" class="main-button main-button--secondary" type="button" disabled>ЖДЁМ ВЕДУЩЕГО СТОЛА <span>⌛</span></button>
+          <button v-if="(state?.players.length ?? 0) >= 2 && isHost" class="main-button" type="button" @click="gameStore.startGame(); playSound('shuffle')">НАЧАТЬ ПАРТИЮ <span>✦</span></button>
+          <button v-else-if="(state?.players.length ?? 0) >= 2" class="main-button main-button--secondary" type="button" disabled>ЖДЁМ ВЕДУЩЕГО СТОЛА <span>⌛</span></button>
           <button v-else class="main-button main-button--secondary" type="button" @click="invite">ПРИГЛАСИТЬ ДРУГА <span>↗</span></button>
-          <p class="lobby__notice">{{ state.players.length >= 2 ? isHost ? 'Начни игру, когда все готовы.' : 'Ведущий начнёт партию, когда все соберутся.' : 'Поделись приглашением, второй игрок сможет сесть за стол.' }}</p>
+          <p class="lobby__notice">{{ (state?.players.length ?? 0) >= 2 ? isHost ? 'Начни игру, когда все готовы.' : 'Ведущий начнёт партию, когда все соберутся.' : 'Поделись приглашением, второй игрок сможет сесть за стол.' }}</p>
         </div>
       </main>
 
@@ -406,11 +406,6 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
             <small>Готовы: {{ state.players.filter(p => p.isReady || p.isBot).length }} / {{ state.players.length }}</small>
           </div>
           <button type="button" :disabled="!!me?.isReady" @click="readyReview">{{ me?.isReady ? 'ОЖИДАЕМ ОСТАЛЬНЫХ…' : 'ЗАКОНЧИТЬ РАЗБОР' }}</button>
-        </div>
-        <div v-if="false && state.phase === 'DEALING'" class="drawer-banner" :class="{ 'drawer-banner--mine': isMyTurn }">
-          <div class="drawer-banner__label">КТО ТЯНЕТ СЕЙЧАС</div>
-          <div class="drawer-banner__name"><span class="drawer-banner__avatar">{{ turnPlayer?.name?.charAt(0).toUpperCase() }}</span><strong>{{ turnPlayer?.name }}</strong></div>
-          <div class="drawer-banner__badge">{{ isMyTurn ? 'ТВОЙ ХОД' : 'ИДЁТ ХОД СОПЕРНИКА' }}</div>
         </div>
         <Transition name="toast">
           <div v-if="latestDraw && state.phase === 'DEALING'" class="draw-activity" role="status">
