@@ -15,6 +15,14 @@ const game = useGameStore();
 const name = ref('');
 const room = ref('pidor-1');
 const joined = ref(false);
+const underlaid = ref(true);
+const bots = ref(3);
+const uiTab = ref<'free' | 'create' | 'code' | 'bots'>('free');
+const publicRoom = ref(true);
+const tableTitle = ref('Стол у камина');
+const selectedAccused = ref<string | null>(null);
+const clock = ref(Date.now());
+let clockTimer: ReturnType<typeof setInterval> | undefined;
 const soundOn = ref(localStorage.getItem('pidor:sound') !== 'off');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const selectedPenalty = ref<Card | null>(null);
@@ -40,8 +48,8 @@ let audioContext: AudioContext | null = null;
 let dealRun = 0;
 
 const state = computed(() => game.gameState);
-const me = computed(() => state.value?.players.find(p => p.id === game.socket?.id));
-const isMyTurn = computed(() => state.value?.players[state.value.turnIndex]?.id === game.socket?.id);
+const me = computed(() => state.value?.players.find(p => p.id === game.playerId));
+const isMyTurn = computed(() => state.value?.players[state.value.turnIndex]?.id === game.playerId);
 const currentPhase = computed(() => state.value?.phase || '');
 const phaseText = computed(() => {
   const labels: Record<string, string> = {
@@ -63,7 +71,7 @@ const seatSlots: Record<number, SeatSlot[]> = {
 const seats = computed(() => others.value.map((player, i) => ({
   player, slot: (seatSlots[others.value.length] ?? seatSlots[5]!)[i],
 })));
-const canDraw = computed(() => currentPhase.value === 'DEALING' && isMyTurn.value && !state.value?.activeCard && !animationLocked.value && !pending.value);
+const canDraw = computed(() => currentPhase.value === 'DEALING' && isMyTurn.value && !state.value?.activeCard && !animationLocked.value && !pending.value && !(state.value?.initialDealEndsAt && clock.value < state.value.initialDealEndsAt));
 const canPlay = computed(() => currentPhase.value === 'MAIN_GAME' && isMyTurn.value && !animationLocked.value && !pending.value);
 const active = computed(() => state.value?.activeCard);
 const trumpSymbol: Record<Suit, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
@@ -75,7 +83,7 @@ const nextPlayer = computed(() => {
   return players[(state.value!.turnIndex + 1) % players.length];
 });
 const trickPosition = computed(() => {
-  const slot = seats.value.find(x => x.player.id === nextPlayer.value?.id)?.slot ?? 'bottom';
+  const slot = seats.value.find(x => x.player.id === (state.value?.trickTargetId || nextPlayer.value?.id))?.slot ?? 'bottom';
   const coords: Record<string, { left: string; top: string }> = {
     left: { left: '23%', top: '45%' },
     'top-left': { left: '32%', top: '32%' },
@@ -114,6 +122,7 @@ function toggleSound() {
 }
 function showToast(text: string) {
   clearTimeout(toastTimeout);
+  clearInterval(clockTimer);
   alertText.value = text;
   toastTimeout = setTimeout(() => { alertText.value = ''; }, 2000);
 }
@@ -257,7 +266,7 @@ async function replayInitialDeal(cards: DealEvent[]) {
 watch(state, (value, old) => {
   if (!value) return;
   // Initial server snapshot is authoritative: replay actual card IDs in round-robin order.
-  if (value.phase === 'DEALING' && old?.phase !== 'DEALING') {
+  if (value.phase === 'DEALING' && old?.phase !== 'DEALING' && value.initialDealEndsAt && Date.now() < value.initialDealEndsAt) {
     const rounds = Math.max(...value.players.map(p => p.stumps.length), 0);
     const sequence: DealEvent[] = [];
     const locked = new Set<string>();
@@ -295,6 +304,11 @@ onMounted(() => {
   window.addEventListener('pointerup', endPointer, { passive: true });
   window.addEventListener('pointercancel', endPointer, { passive: true });
   game.connect();
+  clockTimer = setInterval(() => { clock.value = Date.now(); }, 250);
+  name.value = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || localStorage.getItem('pidor:name') || '';
+  const requestRoom = new URLSearchParams(location.search).get('room');
+  if (requestRoom && /^[A-Za-z0-9_-]{1,48}$/.test(requestRoom)) { room.value = requestRoom; uiTab.value = 'code'; }
+  void game.fetchTables();
 });
 onBeforeUnmount(() => {
   ++dealRun;
