@@ -378,6 +378,8 @@ export class PidorRoom extends DurableObject<Env> {
         emit(socket, 'actionError', 'Партию начинает ведущий стола');
       } else game.start();
     }
+    else if (type === 'drawTo' && typeof data.targetPlayerId === 'string') game.drawTo(id, data.targetPlayerId);
+    else if (type === 'moveTopTo' && typeof data.targetPlayerId === 'string') game.moveTopTo(id, data.targetPlayerId);
     else if (type === 'drawCardFromDeck') game.takeFromDeck(id);
     else if (type === 'takeFromPile' && typeof data.cardId === 'string') game.takeFromPile(id, data.cardId);
     else if (type === 'placeActiveCard' && typeof data.targetPlayerId === 'string') game.placeActiveCard(id, data.targetPlayerId);
