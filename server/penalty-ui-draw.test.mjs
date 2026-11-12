@@ -143,7 +143,8 @@ function timerHarness() {
   const app=readFileSync(new URL('../client/src/App.vue',import.meta.url),'utf8');
   const store=readFileSync(new URL('../client/src/stores/game.ts',import.meta.url),'utf8');
   const worker=readFileSync(new URL('./cloudflare-worker.ts',import.meta.url),'utf8');
-  assert.match(app,/v-if="gameStore\.drawReveal"/,'Flip must render for clients');
+  assert.match(app,/v-if="gameStore\.drawReveal && gameStore\.drawReveal\.playerId !== gameStore\.playerId"/,
+    'Observers see the public card flip, but drawer uses the real moving card');
   assert.match(app,/:card="gameStore\.drawReveal\.card"/,'Flip shows actual card face');
   assert.match(app,/@keyframes draw-reveal-turn/,'Flip transition exists');
   assert.match(app,/rotateY\(180deg\)/,'Front must become visible during rotation');
