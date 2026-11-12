@@ -53,10 +53,11 @@ function rayEntry(
     bottom: rect.bottom + EDGE_TOLERANCE_PX
   };
   let near = 0, far = Infinity;
-  for (const [axis, unit, min, max] of [
+  const axes: Array<[number,number,number,number]> = [
     [origin.x, ux, r.left, r.right],
     [origin.y, uy, r.top, r.bottom]
-  ]) {
+  ];
+  for (const [axis, unit, min, max] of axes) {
     if (Math.abs(unit) < 1e-6) {
       if (axis < min || axis > max) return null;
     } else {
