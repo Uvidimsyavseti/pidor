@@ -4,6 +4,7 @@ import './throw-chain.test.mjs';
 import './underlaid-mode.test.mjs';
 import './p0-invariants.test.mjs';
 import './throw-gesture.test.mjs';
+import './p1-interface.test.mjs';
 import './special-draw-rules.test.mjs';
 import './accusation-window.test.mjs';
 import './penalty-ui-draw.test.mjs';
