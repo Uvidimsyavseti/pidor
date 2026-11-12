@@ -74,7 +74,7 @@ export const useGameStore = defineStore('game', {
         else if (message.type === 'penalty') {
           const data = message.data as { playerId: string; reason: string };
           this.lastPenalty = data;
-          setTimeout(() => { if (this.lastPenalty === data) this.lastPenalty = null; }, 2500);
+          setTimeout(() => { if (this.lastPenalty === data) this.lastPenalty = null; }, 2050);
         } else if (message.type === 'penaltyAwarded') {
           this.splashSequence++;
           const sequence = this.splashSequence;
@@ -82,11 +82,11 @@ export const useGameStore = defineStore('game', {
           this.lastPenalty = null;
           setTimeout(() => {
             if (this.splashSequence === sequence) this.penaltySplash = false;
-          }, 1900);
+          }, 1550);
         } else if (message.type === 'accusationVerdict') {
           const data = message.data as { correct: boolean; accuserId: string; accusedId: string; penalizedId: string; reason: string };
           this.verdictToast = data;
-          setTimeout(() => { if (this.verdictToast === data) this.verdictToast = null; }, 3000);
+          setTimeout(() => { if (this.verdictToast === data) this.verdictToast = null; }, 2050);
         } else if (message.type === 'actionError') {
           this.error = String(message.data);
           setTimeout(() => { if (this.error === message.data) this.error = ''; }, 3200);
