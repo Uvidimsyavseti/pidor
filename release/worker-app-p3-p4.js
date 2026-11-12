@@ -1337,6 +1337,10 @@ const RELEASE_CSS = "/*! tailwindcss v4.1.18 | MIT License | https://tailwindcss
 var cloudflare_worker_default = {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // Single canonical Mini App entry point: legacy / must never show the old UI.
+    if (url.pathname === "/" || url.pathname === "/index.html") {
+      return Response.redirect(url.origin + "/api/app" + url.search, 302);
+    }
     if (url.pathname === "/api/app" || url.pathname === "/api/app/") return new Response(RELEASE_HTML,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-pidor-release":"p3-p4"}});
     if (url.pathname === "/api/app.js") return new Response(RELEASE_JS,{headers:{"content-type":"application/javascript; charset=utf-8","cache-control":"no-store"}});
     if (url.pathname === "/api/app.css") return new Response(RELEASE_CSS,{headers:{"content-type":"text/css; charset=utf-8","cache-control":"no-store"}});
