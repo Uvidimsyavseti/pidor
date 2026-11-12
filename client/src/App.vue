@@ -74,6 +74,10 @@ const activeFlightId = ref<string | null>(null);
 const landingSeatId = ref<string | null>(null);
 const deckGestureId = ref<number | null>(null);
 const deckGestureHeld = ref(false);
+const deckDragPreview = ref(false);
+const deckDragMoved = ref(false);
+const pendingDropTarget = ref<string | null>(null);
+const deckDragStart = ref({ x: 0, y: 0 });
 const activeDragging = ref(false);
 const dragPoint = ref({ x: 0, y: 0 });
 const dragLocal = computed(() => {
@@ -292,6 +296,10 @@ function onDeckDown(e: PointerEvent) {
   // server has actually assigned a card to this player.
   deckGestureId.value = e.pointerId;
   deckGestureHeld.value = true;
+  deckDragPreview.value = true;
+  deckDragMoved.value = false;
+  pendingDropTarget.value = null;
+  deckDragStart.value = { x: e.clientX, y: e.clientY };
   activeDragging.value = false;
   dragTarget.value = null;
   dragPoint.value = { x: e.clientX, y: e.clientY };
@@ -310,7 +318,8 @@ function onActiveDown(e: PointerEvent) {
 function movePointer(e: PointerEvent) {
   if (deckGestureId.value !== e.pointerId) return;
   dragPoint.value = { x: e.clientX, y: e.clientY };
-  if (!activeDragging.value && deckGestureHeld.value && active.value && isMyTurn.value && currentPhase.value === 'DEALING') activeDragging.value = true;
+  if (deckGestureHeld.value && Math.hypot(e.clientX - deckDragStart.value.x, e.clientY - deckDragStart.value.y) > 9) deckDragMoved.value = true;
+  if (!activeDragging.value && deckGestureHeld.value && active.value && isMyTurn.value && currentPhase.value === 'DEALING') { activeDragging.value = true; deckDragPreview.value = false; }
   if (activeDragging.value) {
     dragTarget.value = document.elementsFromPoint(e.clientX, e.clientY)
       .map(el => (el as HTMLElement).closest<HTMLElement>('[data-seat-id]'))
@@ -319,15 +328,17 @@ function movePointer(e: PointerEvent) {
 }
 function endPointer(e: PointerEvent) {
   if (e.pointerId !== deckGestureId.value) return;
-  if (activeDragging.value) {
+  if (activeDragging.value || deckGestureHeld.value) {
     const seat = document.elementsFromPoint(e.clientX, e.clientY)
       .map(el => (el as HTMLElement).closest<HTMLElement>('[data-seat-id]'))
       .find((el): el is HTMLElement => Boolean(el));
     const target = dragTarget.value || seat?.dataset.seatId;
-    if (target) placeCard(target);
-    else if (active.value) showToast('Отпусти карту на игроке или нажми на его карты');
+    if (target && active.value) placeCard(target);
+    else if (target && deckGestureHeld.value && deckDragMoved.value) pendingDropTarget.value = target;
+    else if (active.value && deckDragMoved.value) showToast('Отпусти карту на игроке');
   }
   deckGestureHeld.value = false;
+  deckDragPreview.value = false;
   deckGestureId.value = null;
   activeDragging.value = false;
   dragTarget.value = null;
@@ -465,10 +476,16 @@ watch(state, (value, old) => {
   if (value.activeCard?.card.id && value.activeCard.card.id !== old?.activeCard?.card.id) {
     // The deck pointer may have been released before the server confirmed the draw.
     // Never keep the drawn card in a phantom drag state.
-    if (!deckGestureHeld.value) { activeDragging.value = false; dragTarget.value = null; }
+    if (deckGestureHeld.value) { activeDragging.value = true; deckDragPreview.value = false; }
+    else { activeDragging.value = false; dragTarget.value = null; }
+    if (pendingDropTarget.value && value.activeCard.ownerId === game.playerId) {
+      const destination = pendingDropTarget.value;
+      pendingDropTarget.value = null;
+      queueMicrotask(() => placeCard(destination));
+    }
     if (value.activeCard.fromDeck && value.activeCard.ownerId === game.playerId) showToast('Карта открыта — перетащи её на игрока или нажми на его стопку');
     activeFlightId.value = value.activeCard.card.id;
-    void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
+    if (!deckGestureHeld.value && !pendingDropTarget.value && !activeDragging.value) void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
       activeFlightId.value = null;
     });
   }
@@ -668,6 +685,10 @@ onBeforeUnmount(() => {
         >
           <CardComponent hidden />
           <span class="table__deck-count">{{ state.deck.length }}</span>
+        </div>
+        <div v-if="deckDragPreview && !active" class="table__deck-drag-preview"
+          :style="{ '--drag-x': dragLocal.x + 'px', '--drag-y': dragLocal.y + 'px' }">
+          <CardComponent hidden />
         </div>
         <div v-if="state.phase === 'MAIN_GAME' && state.trumpSuit" class="table__trump" :class="{ 'table__trump--red': isRedTrump }">
           Козырь <b>{{ trumpSymbol[state.trumpSuit] }}</b>
