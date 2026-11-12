@@ -96,12 +96,10 @@ export class PidorGame {
   }
 
   canBeat(card: Card, target: Card): boolean {
-    // During the deal a card may cover only a weaker card of the SAME suit.
-    // Search the table clockwise, skipping players whose visible suit differs.
-    if (card.suit !== target.suit) return false;
-    // A six can cover the ace of its own suit, but not any other suit.
-    return card.rank === '6' && target.rank === 'A'
-      ? true : RANK_VALUE[card.rank] > RANK_VALUE[target.rank];
+    // During dealing suits do not matter: next rank only.
+    // Six wraps onto ace, except the spade six.
+    if (card.rank === '6') return card.suit !== 'spades' && target.rank === 'A';
+    return RANK_VALUE[card.rank] === RANK_VALUE[target.rank] + 1;
   }
 
   canMoveTopCard(playerId: string): boolean {
