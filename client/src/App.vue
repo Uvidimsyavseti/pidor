@@ -138,11 +138,11 @@ const guidance = computed(() => {
 const loser = computed(() => state.value?.players.find(p => !p.hasExited));
 
 function haptic() { tg?.HapticFeedback?.impactOccurred?.('light'); }
-function joinFromHome(payload: { name: string; room: string; mode: 'friends' | 'bot'; botCount: number }) {
+function joinFromHome(payload: { name: string; room: string; mode: 'friends' | 'bot'; botCount: number; underlaidCards: boolean }) {
   name.value = payload.name;
   room.value = payload.room;
   playMode.value = payload.mode;
-  gameStore.joinRoom(payload.name, payload.room, payload.mode, payload.botCount);
+  gameStore.joinRoom(payload.name, payload.room, payload.mode, payload.botCount, payload.underlaidCards);
 }
 function returnToLobby() {
   haptic();
@@ -246,7 +246,8 @@ function newGame() {
   if (!botGame) { returnToLobby(); return; }
   room.value = 'solo-' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
   gameStore.joinRoom(gameStore.playerName || name.value, room.value, 'bot',
-    Math.max(1, state.value?.players.filter(p => p.isBot).length || 1));
+    Math.max(1, state.value?.players.filter(p => p.isBot).length || 1),
+    state.value?.underlaidCards !== false);
 }
 watch(() => gameStore.gameState?.phase, (next, prev) => {
   if (next === prev) return;
@@ -517,7 +518,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
             <div class="player-dock__buttons">
               <span v-if="canDraw && state.phase === 'DEALING'" class="action-hint">Перенеси карту из центральной колоды на игрока</span>
               <button v-if="isMyTurn && state.currentTrick.length && state.phase === 'MAIN_GAME'" type="button" class="action-button action-button--gold" @click="gameStore.takeTrick()">ЗАБРАТЬ НИЖНЮЮ</button>
-              <button v-if="canTakeStumps" type="button" class="action-button action-button--gold" @click="gameStore.takeStumps()">БЕРУ ПЕНЬКИ!</button>
+              <button v-if="canTakeStumps" type="button" class="action-button action-button--gold" @click="gameStore.takeStumps()">БЕРУ ПОХУЁВЫЕ!</button>
               <button v-if="canExitGame" type="button" class="action-button action-button--gold" @click="gameStore.exitGame()">С ПИДОРАМИ НЕ ИГРАЮ!</button>
               <span v-if="state.phase === 'MAIN_GAME' && !isMyTurn && !canTakeStumps && !canExitGame" class="action-hint">Дожидаемся хода</span>
               <span v-else-if="state.phase === 'PENALTY_DISTRIBUTION' && !selectedCard" class="action-hint">Выбери карту для передачи</span>
@@ -525,7 +526,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
             </div>
           </div>
           <PlayerSeat v-if="me" :player="me" :is-me="true" :is-turn="isMyTurn"
-            :phase="state.phase" :selected-card-id="selectedCard?.id"
+            :phase="state.phase" :underlaid-cards="state.underlaidCards !== false" :selected-card-id="selectedCard?.id"
             :targetable="!!dragging" @drag-start="beginDrag($event, 'pile')"
             @card-click="handleCardClick" />
         </section>
