@@ -363,3 +363,20 @@
  .game-board__flip-card{transform:rotateY(180deg);}
  .game-board__deck,.app-shell--playing .header-actions button{transition:none;}
 }
+
+/* No separate trump panel: just a tiny suit mark on the felt. */
+.game-board__trump {
+  display:inline-flex;align-items:center;gap:6px;min-width:0;
+  color:#d3c2a2;font-size:10px;font-weight:700;
+  line-height:1;letter-spacing:.02em;text-transform:none;
+  background:none;border:0;box-shadow:none;padding:0;
+}
+.game-board__trump strong {
+  font-family:Georgia,serif;font-size:23px;font-weight:800;line-height:1;
+  color:#ead2a5;text-shadow:0 1px 2px rgba(0,0,0,.35);
+}
+.game-board__trump .game-board__trump--red {color:#edac9f;}
+@media(max-width:450px) {
+  .game-board__trump {font-size:9px;gap:4px;}
+  .game-board__trump strong {font-size:19px;}
+}
