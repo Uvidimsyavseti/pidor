@@ -141,3 +141,32 @@ test('state restoration preserves card IDs, deck and active card', () => {
   assert.deepEqual(restored.state, game.state);
   assertConserved(restored.state);
 });
+
+test('penalty distribution: server assigns the giver, recipient, exact card and enters MAIN_GAME', () => {
+  const game = new PidorGame(players(2));
+  game.start(false);
+  game.addPenalty(0, 'Проверка мухлежа');
+  const verdict = game.accuse('p1', 'p0');
+  assert.equal(verdict?.correct, true);
+  assert.equal(game.state.players[0].penalties, 1);
+  for (let n = 0; game.state.phase === 'DEALING' && n < 40; n++) {
+    const actor = game.state.players[game.state.turnIndex];
+    assert.equal(game.takeFromDeck(actor.id), true);
+    if (game.state.activeCard) assert.equal(game.placeActiveCard(actor.id, actor.id), true);
+  }
+  assert.equal(game.state.deck.length, 0);
+  assert.equal(game.state.phase, 'PENALTY_REVIEW');
+  assert.equal(game.finishReview('p0'), true);
+  assert.equal(game.finishReview('p1'), true);
+  assert.equal(game.state.phase, 'PENALTY_DISTRIBUTION');
+  const pending = game.currentPenaltyTurn();
+  assert.equal(pending?.giverId, 'p1');
+  assert.equal(pending?.receiverId, 'p0');
+  const gift = game.state.players[1].hand[0];
+  assert.ok(gift);
+  assert.equal(game.givePenaltyCard('p1', gift.id, 'p1'), false, 'only server-designated recipient may receive');
+  assert.equal(game.givePenaltyCard('p1', gift.id, 'p0'), true);
+  assert.equal(game.state.phase, 'MAIN_GAME');
+  assert.ok(game.state.players[0].hand.some(c => c.id === gift.id));
+  assertConserved(game.state);
+});
