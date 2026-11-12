@@ -4,6 +4,7 @@ export interface TableListing {
   id: string;
   title: string;
   visibility: 'public' | 'private';
+  underlaidCards?: boolean;
   phase: 'LOBBY' | 'DEALING' | 'PENALTY_REVIEW' | 'PENALTY_DISTRIBUTION' | 'MAIN_GAME' | 'ENDED';
   seats: number;
   capacity: number;
@@ -43,11 +44,12 @@ export class LobbyDirectory extends DurableObject {
       if (tables.length >= MAX_TABLES) {
         return Response.json({ error: 'Все столы временно заняты. Повтори попытку.' }, { status: 429 });
       }
-      const data = await request.json().catch(() => ({})) as { title?: string; visibility?: string };
+      const data = await request.json().catch(() => ({})) as { title?: string; visibility?: string; underlaidCards?: boolean };
       const id = 't_' + crypto.randomUUID().replace(/-/g, '').slice(0, 14);
       const table: TableListing = {
         id, title: cleanName(data.title),
         visibility: data.visibility === 'private' ? 'private' : 'public',
+        underlaidCards: data.underlaidCards !== false,
         phase: 'LOBBY', seats: 0, capacity: 6, players: [],
         createdAt: now, updatedAt: now
       };
