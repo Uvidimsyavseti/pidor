@@ -8,6 +8,7 @@ const props = defineProps<{
   isMe: boolean;
   isTurn: boolean;
   phase: string;
+  underlaidCards?: boolean;
   selectedCardId?: string | null;
   targetable?: boolean;
 }>();
@@ -80,8 +81,8 @@ function selectCard(card: Card) {
           />
           <span class="seat__pile-count">{{ player.stumps.length }}</span>
         </div>
+        <div v-else class="seat__pile-empty" aria-label="Пустая стопка">+</div>
       </div>
-      
     </template>
 
     <template v-else>
@@ -102,12 +103,12 @@ function selectCard(card: Card) {
         </div>
 
         <div v-if="['DEALING','PENALTY_REVIEW'].includes(phase)" class="seat__deal-area" data-testid="my-dealing-pile">
-          <div class="seat__stack" :aria-label="'Стопка из ' + player.stumps.length + ' карт'">
+          <div v-if="player.stumps.length" class="seat__stack" :aria-label="'Стопка из ' + player.stumps.length + ' карт'">
             <div class="seat__stack-layer seat__stack-layer--bottom"><CardComponent hidden /></div>
             <div v-if="player.stumps.length > 1" class="seat__stack-layer seat__stack-layer--middle"><CardComponent hidden /></div>
             <div :key="player.stumps[player.stumps.length - 1]?.id" class="seat__stack-layer seat__stack-layer--top">
               <button
-                v-if="player.stumps.length > 3 && isTurn"
+                v-if="player.stumps.length > (underlaidCards === false ? 0 : 3) && isTurn"
                 type="button"
                 class="seat__card-button seat__stack-button"
                 :aria-label="'Передать верхнюю карту ' + player.stumps[player.stumps.length - 1]?.rank + ' ' + player.stumps[player.stumps.length - 1]?.suit"
@@ -117,6 +118,7 @@ function selectCard(card: Card) {
             </div>
             <span class="seat__stack-count">{{ player.stumps.length }}</span>
           </div>
+          <div v-else class="seat__empty-pile" aria-label="Пустая стопка">+</div>
         </div>
 
         <div v-else class="seat__play-area">
@@ -298,4 +300,8 @@ function selectCard(card: Card) {
 .seat--me .seat__hand-heading .seat__section-label:empty { display:none; }
 .seat__stack-layer--top:not(:has(button)) { cursor:default; }
 @media(max-width:680px){ .seat--opponent .seat__meta{font-size:9px;} .seat--opponent .seat__avatar{display:none;} }
+
+.seat__empty-pile,.seat__pile-empty { display:grid;place-items:center;min-width:66px;min-height:92px;border:2px dashed #ae996d88;border-radius:13px;background:#0e29236e;color:#d7b477;font:30px Georgia,serif; }
+.seat__pile-empty { min-width:48px;min-height:64px;font-size:20px; }
+@media(max-width:680px){ .seat__empty-pile{min-width:55px;min-height:78px} .seat__pile-empty{min-width:35px;min-height:52px} }
 </style>
