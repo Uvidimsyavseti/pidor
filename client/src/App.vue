@@ -60,7 +60,7 @@ const seatSlots: Record<number, SeatSlot[]> = {
   5: ['left','top-left','top-center','top-right','right'],
 };
 const seats = computed(() => others.value.map((player, i) => ({
-  player, slot: (seatSlots[others.value.length] ?? seatSlots[5])[i],
+  player, slot: (seatSlots[others.value.length] ?? seatSlots[5]!)[i],
 })));
 const canDraw = computed(() => currentPhase.value === 'DEALING' && isMyTurn.value && !state.value?.activeCard && !animationLocked.value && !pending.value);
 const canPlay = computed(() => currentPhase.value === 'MAIN_GAME' && isMyTurn.value && !animationLocked.value && !pending.value);
