@@ -477,14 +477,13 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
             </div>
             <div class="game-board__center">
               <div class="game-board__deck-zone">
-                <span class="game-board__small-label">КОЛОДА</span>
-                <button type="button" class="game-board__deck" :class="{ 'game-board__deck--ready': canDraw }"
+                <span v-if="state.deck.length" class="game-board__small-label">КОЛОДА</span>
+                <button v-if="state.deck.length" type="button" class="game-board__deck" :class="{ 'game-board__deck--ready': canDraw }"
                   :disabled="!canDraw" title="Взять карту" aria-label="Взять карту и открыть всем игрокам"
                   @pointerdown.prevent="beginDrag($event, 'deck')">
-                  <CardComponent v-if="state.deck.length" hidden />
-                  <span v-else class="game-board__deck-empty">—</span>
+                  <CardComponent hidden />
                 </button>
-                <span class="game-board__deck-count">{{ state.deck.length }}</span>
+                <span v-if="state.deck.length" class="game-board__deck-count">{{ state.deck.length }}</span>
                 <span v-if="state.phase === 'MAIN_GAME' && state.trumpSuit"
                   class="game-board__trump-mark"
                   :class="{ 'game-board__trump-mark--red': trumpIsRed }"
