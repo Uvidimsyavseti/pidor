@@ -19,7 +19,7 @@ assert.match(app,/mainNextTargetId\.value/,'Main-game target is determined clock
 assert.match(app,/gameStore\.playCard\(card\.id\)/,'Server remains authoritative over played cards');
 assert.match(app,/if \(hoveredPlayer && hoveredPlayer!==destination\) return/,'Dropping onto wrong player cancels');
 assert.match(seat,/<HandFan v-if="phase === 'MAIN_GAME'"/,'Main hand uses fan, not row');
-assert.match(seat,/@hand-drag-start="\(event,card\) => emit\('handDragStart',event,card\)"/);
+assert.match(seat,/@drag-start="\(event,card\) => emit\('handDragStart',event,card\)"/);
 assert.match(fan,/ResizeObserver/,'Fan adapts to changing viewport width');
 assert.match(fan,/calc\(var\(--fan-y\) \+ var\(--fan-lift\)\)/,'Card rises as finger selects it');
 assert.match(fan,/--fan-angle/,'The hand is angled into a fan');
