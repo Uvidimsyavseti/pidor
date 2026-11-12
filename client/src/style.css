@@ -442,3 +442,40 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
  filter:drop-shadow(0 16px 16px #0009);
 }
 .table__deck-drag-preview .playing-card {width:84px;height:118px;transform:none!important;}
+
+
+/* Keep secondary card piles away from opponent seats on narrow Telegram screens. */
+.table__trump {
+ left:auto!important;right:5%!important;top:8%!important;
+ transform:none!important;z-index:16!important;
+ display:flex;align-items:center;gap:5px;
+ font-size:11px!important;letter-spacing:.02em;
+ padding:5px 8px;border-radius:11px;
+ background:#102d27d9;box-shadow:0 4px 16px #0004;
+}
+.table__trump b {font-size:20px;}
+.table__discard {
+ left:auto!important;right:7%!important;top:auto!important;bottom:9%!important;
+ transform:rotate(9deg)!important;opacity:.75!important;z-index:7!important;
+}
+.table__discard .playing-card {width:40px!important;height:57px!important;}
+.table__discard-num {font-size:10px!important;opacity:1!important;}
+/* Show exactly where to throw a card; no big rectangle around the table. */
+.table__play-target {left:26%;right:26%;top:37%;bottom:28%;border-radius:45%;transition:background .2s,box-shadow .2s;}
+.table__play-target--enabled {
+ background:radial-gradient(ellipse at center,#f3d18a1b 0%,#dfba6b0c 42%,transparent 75%);
+ box-shadow:inset 0 0 0 1px #f2d69a35;
+}
+.table__play-target--dragover {
+ background:radial-gradient(ellipse,#f9d89a48,transparent 80%)!important;
+ box-shadow:inset 0 0 0 2px #ffe2a6a0,0 0 28px #e9bd6840!important;
+}
+.table__play-target-label {
+ position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+ padding:6px 11px;border-radius:999px;white-space:nowrap;
+ font-size:10px;letter-spacing:.09em;font-weight:750;
+ color:#f6e0ac;background:#112e29d9;border:1px dashed #e9c47778;
+ text-shadow:0 1px 3px #0007;pointer-events:none;
+}
+.table__play-target--dragover .table__play-target-label {background:#d9ae66;color:#1d251f;border-style:solid;text-shadow:none;}
+@media(max-width:370px){.table__trump{right:3%!important;top:7%!important}.table__discard{right:5%!important;bottom:8%!important}.table__play-target-label{font-size:9px}}
