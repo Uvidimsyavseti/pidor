@@ -19,6 +19,14 @@ declare global {
 
 function px(value: number | undefined): string { return (Number.isFinite(value) ? Math.max(0, value!) : 0) + 'px'; }
 
+export function requestTelegramFullscreen(): void {
+  const tg = window.Telegram?.WebApp;
+  if (!tg) return;
+  try { tg.expand?.(); } catch { /* unavailable */ }
+  try { tg.disableVerticalSwipes?.(); } catch { /* unavailable */ }
+  try { tg.requestFullscreen?.(); } catch { /* needs a gesture on some clients */ }
+}
+
 export function mountTelegramViewport(): () => void {
   const tg = window.Telegram?.WebApp;
   const root = document.documentElement;
@@ -42,10 +50,7 @@ export function mountTelegramViewport(): () => void {
     });
   };
   try { tg?.ready?.(); } catch { /* Telegram not available */ }
-  try { tg?.expand?.(); } catch { /* Telegram not available */ }
-  try { tg?.disableVerticalSwipes?.(); } catch { /* unsupported */ }
-  // Fullscreen requires permission or gesture in some Telegram clients. Keep safe area regardless.
-  try { tg?.requestFullscreen?.(); } catch { /* unsupported */ }
+  requestTelegramFullscreen();
 
   sync();
   window.addEventListener('resize', sync, { passive: true });
@@ -53,6 +58,7 @@ export function mountTelegramViewport(): () => void {
   tg?.onEvent?.('viewportChanged', sync);
   tg?.onEvent?.('safeAreaChanged', sync);
   tg?.onEvent?.('contentSafeAreaChanged', sync);
+  tg?.onEvent?.('fullscreenChanged', sync);
   return () => {
     cancelAnimationFrame(raf);
     window.removeEventListener('resize', sync);
@@ -60,5 +66,6 @@ export function mountTelegramViewport(): () => void {
     tg?.offEvent?.('viewportChanged', sync);
     tg?.offEvent?.('safeAreaChanged', sync);
     tg?.offEvent?.('contentSafeAreaChanged', sync);
+    tg?.offEvent?.('fullscreenChanged', sync);
   };
 }
