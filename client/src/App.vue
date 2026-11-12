@@ -1243,4 +1243,40 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
  .table-center__slot--deck :deep(.playing-card) { --width:60px; }
 }
 
+
+/* Short notices float above the HUD, never block dragging or obscure seats. */
+.verdict-toast,.penalty-toast {
+  top:calc(env(safe-area-inset-top) + 8px)!important;
+  width:min(340px,84vw)!important;
+  max-width:84vw!important;
+  padding:7px 12px!important;
+  gap:1px!important;
+  font-size:10px!important;
+  line-height:1.24;
+  border-radius:9px!important;
+  pointer-events:none!important;
+  z-index:240!important;
+  box-shadow:0 4px 20px #0008!important;
+}
+.verdict-toast strong,.penalty-toast strong { font-size:11px!important; }
+.verdict-toast small { font-size:9px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.penalty-reveal {
+  inset:auto!important;
+  top:calc(env(safe-area-inset-top) + 12px)!important;
+  left:50%!important;
+  transform:translateX(-50%)!important;
+  height:auto!important;
+  width:min(320px,82vw)!important;
+  min-height:0!important;
+  padding:10px 12px!important;
+  pointer-events:none!important;
+  border-radius:10px!important;
+  border:1px solid #e3bb75;
+  box-shadow:0 6px 30px #0008;
+  font-size:12px!important;
+  z-index:245!important;
+}
+.penalty-reveal__card,.penalty-reveal span {display:none!important;}
+.penalty-reveal strong {font-size:18px!important;letter-spacing:.03em}
+@media(max-width:680px){ .verdict-toast,.penalty-toast{top:calc(env(safe-area-inset-top) + 5px)!important;padding:6px 9px!important;} }
 </style>
