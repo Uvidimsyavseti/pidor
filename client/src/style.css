@@ -272,3 +272,12 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
   .hand-area--fan { height: 103px; min-height: 103px; pointer-events: auto; }
   .table__seat--self { bottom: 53px; }
 }
+
+
+.profile__metrics { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 20px; }
+.profile__metrics span { padding:10px 5px;background:#ffffff0b;border-radius:10px;text-align:center;font-size:11px;display:flex;flex-direction:column;gap:6px; }
+.profile__metrics b {font-size:23px;color:#f1dba0;}
+.profile__heading {font-size:15px;font-weight:600;margin:8px 0;}
+.profile__history {max-height:32vh;overflow-y:auto;display:flex;flex-direction:column;gap:5px;}
+.profile__match {display:flex;flex-direction:column;gap:4px;padding:10px 12px;background:#ffffff09;border-radius:9px;font-size:13px;}
+.profile__match small {opacity:.65;font-size:11px;}
