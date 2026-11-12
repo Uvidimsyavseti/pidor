@@ -359,27 +359,41 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
   await nextTick();
   const element = flightRef.value;
   if (!element) { flight.value = null; return; }
-  element.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(' + sourceScale + ')';
-  const ms = reducedMotion ? 70 : 420;
+  const ms = reducedMotion ? 70 : (targetId ? 390 : 490);
+  // A card moves along a shallow arc with a continuously interpolated size.
+  // Both endpoints match the real DOM card, so no scale pop on landing.
+  const start = Math.max(.3, sourceScale);
+  const end = Math.max(.3, targetScale);
+  const mid = start + (end - start) * .52;
+  const arc = reducedMotion ? 0 : Math.min(34, Math.hypot(to.x - from.x, to.y - from.y) * .09);
+  const at = (x: number, y: number, scale: number, rotation: number) =>
+    `translate(${x}px, ${y}px) scale(${scale}) rotate(${rotation}deg)`;
+  element.style.transform = at(from.x, from.y, start, 0);
   const motion = element.animate([
-    { transform: 'translate(' + from.x + 'px,' + from.y + 'px) scale(' + sourceScale + ') rotate(-5deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
-    { transform: 'translate(' + ((from.x + to.x) / 2) + 'px,' + ((from.y + to.y) / 2 - 30) + 'px) scale(' + Math.max(sourceScale, targetScale) * 1.04 + ') rotate(2deg)', filter: 'drop-shadow(0 14px 10px #0008)', offset: .44 },
-    { transform: 'translate(' + to.x + 'px,' + to.y + 'px) scale(' + targetScale + ') rotate(0deg)', filter: 'drop-shadow(0 4px 4px #0004)' },
-  ], { duration: ms, easing: 'cubic-bezier(.2,.7,.25,1)', fill: 'forwards' });
+    { transform: at(from.x, from.y, start, 0), offset: 0 },
+    { transform: at(from.x + (to.x - from.x) * .52, from.y + (to.y - from.y) * .52 - arc, mid, 2), offset: .52 },
+    { transform: at(to.x, to.y, end, 0), offset: 1 },
+  ], { duration: ms, easing: 'cubic-bezier(.35,0,.18,1)', fill: 'forwards' });
+  let flipTimer: number | undefined;
+  let flipMotion: Animation | undefined;
   if (faceUp) {
     const body = element.querySelector<HTMLElement>('.card-flight__body');
-    body?.animate([
-      { transform: 'rotateY(0deg)' },
-      { transform: 'rotateY(88deg)', offset: .5 },
-      { transform: 'rotateY(0deg)' },
-    ], { duration: ms, fill: 'forwards' });
-    // Flip the actual moving card, not a second card rendered above the deck.
-    const flipTimer = window.setTimeout(() => { if (flight.value?.card.id === card.id) flight.value = { card, hidden: false }; }, ms / 2);
-    try { await motion.finished; } catch { /* interrupted */ }
-    clearTimeout(flipTimer);
-    if (flight.value?.card.id === card.id) flight.value = { card, hidden: false };
+    flipMotion = body?.animate([
+      { transform: 'rotateY(0deg)', offset: 0 },
+      { transform: 'rotateY(89deg)', offset: .5 },
+      { transform: 'rotateY(0deg)', offset: 1 },
+    ], { duration: ms * .64, delay: ms * .14, easing: 'ease-in-out', fill: 'forwards' });
+    // Swap the texture only while the same card is edge-on.
+    flipTimer = window.setTimeout(() => {
+      if (flight.value?.card.id === card.id) flight.value = { card, hidden: false };
+    }, ms * .46);
   }
-  if (!faceUp) { try { await motion.finished; } catch { /* interrupted */ } }
+  try { await motion.finished; } catch { /* interrupted by navigation */ }
+  if (flipTimer !== undefined) clearTimeout(flipTimer);
+  if (faceUp && flight.value?.card.id === card.id) flight.value = { card, hidden: false };
+  flipMotion?.cancel();
+  // Keep the final frame stable until Vue has painted the destination card.
+  await nextTick();
   burst(targetId ? 'draw' : 'play', to.x + 42, to.y + 59);
   flight.value = null;
 }
@@ -697,7 +711,7 @@ onBeforeUnmount(() => {
       <div v-if="alertText" class="toast" role="status">{{ alertText }}</div>
     </Transition>
     <div v-if="vfx" :key="vfx.id" class="table-vfx" :class="'table-vfx--' + vfx.kind" :style="{ left: vfx.x + 'px', top: vfx.y + 'px' }"><i v-for="n in 8" :key="n" :style="{ '--spark-angle': (n * 45) + 'deg' }"></i></div>
-    <div v-if="flight" ref="flightRef" class="card-flight" :style="{ transform: `translate(${flightOrigin.x}px, ${flightOrigin.y}px) scale(.87)` }">
+    <div v-if="flight" ref="flightRef" class="card-flight" :style="{ transform: `translate(${flightOrigin.x}px, ${flightOrigin.y}px)` }">
       <div class="card-flight__body"><CardComponent :card="flight.card" :hidden="flight.hidden" /></div>
     </div>
   </main>
