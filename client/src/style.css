@@ -264,3 +264,11 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 .end-screen__scores b { color: #e8ac94; }
 .end-screen .lobby__button { padding: 0 24px; }
 @keyframes end-enter { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* P3 landscape: do not let the invisible hand region cover our dealing stack. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hand-area { height: 46px; min-height: 46px; pointer-events: none; }
+  .hand-area__actions { pointer-events: auto; }
+  .hand-area--fan { height: 103px; min-height: 103px; pointer-events: auto; }
+  .table__seat--self { bottom: 53px; }
+}
