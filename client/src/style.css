@@ -337,3 +337,45 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 .table__seat--target .seat__cards {filter:drop-shadow(0 0 14px #f6d18ba0);}
 .table-vfx i {animation-duration:.49s;}
 @media(prefers-reduced-motion:reduce){.table__active--dealing .playing-card{transition:none;}}
+
+
+/* Mobile-first table scaling. 2-4 players use available space;
+   5-6 players use compact top-row cards to avoid collisions. */
+.table {--seat-card-w:clamp(54px,15.4vw,68px);--seat-card-h:calc(var(--seat-card-w)*1.425);}
+.table .seat {min-width:var(--seat-card-w);max-width:112px;gap:5px;}
+.table .seat__cards {width:var(--seat-card-w);height:var(--seat-card-h);}
+.table .seat__cards .playing-card--small {width:var(--seat-card-w);height:var(--seat-card-h);border-radius:6px;}
+.table .seat__identity {font-size:clamp(12px,3.4vw,15px);max-width:116px;}
+.table .seat__name {max-width:86px;}
+.table .seat__count {font-size:11px;}
+.table__seat--left {top:35%;left:6%;}
+.table__seat--right {top:35%;right:6%;}
+.table__seat--top-center {top:4%;}
+.table__seat--top-left {top:6%;left:18%;}
+.table__seat--top-right {top:6%;right:18%;}
+.table__seat--self {bottom:5%;}
+.table--five,.table--six {--seat-card-w:clamp(46px,12.5vw,58px);}
+.table--five .table__seat--top-left,.table--six .table__seat--top-left {left:19%;top:5%;}
+.table--five .table__seat--top-right,.table--six .table__seat--top-right {right:19%;top:5%;}
+.table--six .table__seat--top-center {top:2%;}
+.table--five .table__seat--left,.table--six .table__seat--left {top:37%;left:5%;}
+.table--five .table__seat--right,.table--six .table__seat--right {top:37%;right:5%;}
+.table--six .table__seat--self,.table--five .table__seat--self {bottom:4%;}
+.table--five .seat__identity,.table--six .seat__identity {font-size:clamp(10px,2.7vw,12px);}
+.table--five .seat__name,.table--six .seat__name {max-width:65px;}
+@media (max-width:370px) {
+ .table {--seat-card-w:52px;}
+ .table--five,.table--six {--seat-card-w:44px;}
+ .table--six .table__seat--top-left,.table--five .table__seat--top-left {left:16%;}
+ .table--six .table__seat--top-right,.table--five .table__seat--top-right {right:16%;}
+ .table__seat--left {left:4%;}.table__seat--right {right:4%;}
+}
+@media (orientation:landscape) and (max-height:500px) {
+ .table {--seat-card-w:clamp(34px,7vh,44px);}
+ .table--five,.table--six {--seat-card-w:clamp(30px,6.5vh,38px);}
+ .table__seat--top-center {top:0;}
+ .table__seat--top-left,.table__seat--top-right {top:1%;}
+ .table__seat--self {bottom:1%;}
+ .table .seat__identity {font-size:10px;}
+ .table .seat__count {font-size:9px;}
+}
