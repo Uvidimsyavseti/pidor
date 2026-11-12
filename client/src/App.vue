@@ -363,19 +363,46 @@ onBeforeUnmount(() => {
       </div>
       <div class="game-bar__actions">
         <div class="stars-placeholder" title="Игровые звёзды появятся позже">★ 0 <small>скоро</small></div>
-        <button class="icon-button" type="button" :aria-label="soundOn ? 'Выключить звук' : 'Включить звук'" @click="toggleSound">{{ soundOn ? '♫' : '♪̸' }}</button>
+        <button class="icon-button" type="button" :aria-label="soundOn ? 'Выключить звук' : 'Включить звук'" @click="toggleSound">{{ soundOn ? '♫' : '♪̸' }}</button><button v-if="joined" type="button" class="icon-button" @click="backToLobby" aria-label="К списку столов">⌂</button>
       </div>
     </header>
 
     <section v-if="!joined" class="lobby">
-      <form class="lobby__panel" @submit.prevent="join">
+      <div class="lobby__panel">
         <h1 class="lobby__title">PIDOR ONLINE</h1>
-        <p class="lobby__subtitle">Свои правила. Свой стол.</p>
-        <input class="lobby__field" v-model="name" maxlength="26" autocomplete="nickname" placeholder="Твоё имя" required aria-label="Имя игрока" />
-        <input class="lobby__field" v-model="room" maxlength="48" placeholder="Код стола" required aria-label="Код стола" />
-        <button class="lobby__button" type="submit">Играть с друзьями</button>
-        <div class="lobby__subtitle">★ Ставки на звёзды появятся позже</div>
-      </form>
+        <p class="lobby__subtitle">Игра для своих.</p>
+        <input class="lobby__field" v-model="name" maxlength="32" autocomplete="nickname" placeholder="Имя игрока" aria-label="Имя игрока" />
+        <div class="lobby__tabs">
+          <button :class="{ active: uiTab === 'free' }" @click="uiTab='free';game.fetchTables()">Свободные</button>
+          <button :class="{ active: uiTab === 'create' }" @click="uiTab='create'">Создать</button>
+          <button :class="{ active: uiTab === 'code' }" @click="uiTab='code'">По коду</button>
+          <button :class="{ active: uiTab === 'bots' }" @click="uiTab='bots'">Боты</button>
+        </div>
+        <div v-if="uiTab === 'free'" class="lobby__stack">
+          <button v-for="table in game.tables" :key="table.id" class="lobby__room" @click="joinRoom(table.id, { mode: 'friends', underlaidCards: table.underlaidCards })">
+            <span>{{ table.title }}</span><small>{{ table.seats }}/{{ table.capacity }} · {{ table.underlaidCards ? 'С подложенными' : 'Без подложенных' }}</small>
+          </button>
+          <p v-if="!game.tables.length" class="lobby__subtitle">Свободных столов пока нет</p>
+          <button class="lobby__secondary" @click="game.fetchTables()">↻ Обновить</button>
+        </div>
+        <div v-else-if="uiTab === 'create'" class="lobby__stack">
+          <input class="lobby__field" v-model="tableTitle" maxlength="36" placeholder="Название стола" />
+          <label class="lobby__checkbox"><input type="checkbox" v-model="publicRoom" /> Публичный стол</label>
+          <label class="lobby__checkbox"><input type="checkbox" v-model="underlaid" /> Две закрытые карты</label>
+          <button class="lobby__button" @click="createRoom">Создать стол</button>
+        </div>
+        <form v-else-if="uiTab === 'code'" class="lobby__stack" @submit.prevent="join">
+          <input class="lobby__field" v-model="room" maxlength="48" placeholder="Код комнаты" required />
+          <button class="lobby__button" type="submit">Присоединиться</button>
+        </form>
+        <div v-else class="lobby__stack">
+          <label class="lobby__checkbox"><input type="checkbox" v-model="underlaid" /> Две закрытые карты</label>
+          <label class="lobby__subtitle">Ботов: {{ bots }}</label>
+          <input type="range" v-model.number="bots" min="1" max="5" />
+          <button class="lobby__button" @click="playBots">Играть с ботами</button>
+        </div>
+        <p class="lobby__subtitle">★ Игра на звёзды — скоро</p>
+      </div>
     </section>
 
     <section v-else-if="state?.phase === 'LOBBY'" class="lobby">
@@ -384,8 +411,8 @@ onBeforeUnmount(() => {
         <div class="lobby__people">
           <span v-for="p in state.players" :key="p.id" class="lobby__person">◆ {{ p.name }}</span>
         </div>
-        <button v-if="state.players.length >= 2" class="lobby__button" @click="game.startGame()">Начать партию</button>
-        <div v-else class="lobby__subtitle">Ожидаем второго игрока</div>
+        <button v-if="state.players.length >= 2 && state.hostId === game.playerId" class="lobby__button" @click="game.startGame()">Начать партию</button>
+        <div v-else class="lobby__subtitle">{{ state.players.length < 2 ? "Ожидаем игроков" : "Ожидаем ведущего" }}</div><div class="lobby__subtitle">Код стола: {{ room }}</div><button class="lobby__secondary" @click="backToLobby">Назад</button>
       </div>
     </section>
 
