@@ -11,6 +11,7 @@ const props = defineProps<{
   underlaidCards?: boolean;
   selectedCardId?: string | null;
   targetable?: boolean;
+  recommended?: boolean;
 }>();
 const emit = defineEmits<{
   cardClick: [payload: { card: Card; ownerId: string }];
@@ -37,6 +38,7 @@ function selectCard(card: Card) {
       'seat--opponent': !isMe,
       'seat--turn': isTurn,
       'seat--target': targetable && !player.hasExited,
+      'seat--recommended': recommended && targetable && !player.hasExited,
       'seat--exited': player.hasExited
     }"
     :data-player-id="player.id"
@@ -52,17 +54,14 @@ function selectCard(card: Card) {
       <div class="seat__info">
         <div class="seat__name" :title="player.name">
           {{ player.name }}
-          <span v-if="isMe" class="seat__you">ВЫ</span>
-          <span v-if="player.isBot" class="seat__bot">БОТ</span>
+          <span v-if="player.isBot" class="seat__bot">BOT</span>
         </div>
-        <div class="seat__meta">
-          <span v-if="player.hasExited" class="seat__exited-label">Вышел из игры</span>
-          <span v-else-if="player.onDuty" class="seat__duty">На вахте</span>
-          <span v-else>ПОХУЁВЫЕ · {{ player.penalties }}</span>
+        <div v-if="player.hasExited || player.onDuty" class="seat__meta">
+          {{ player.hasExited ? 'Вышел' : 'На вахте' }}
         </div>
       </div>
-      <div v-if="player.penalties" class="seat__penalties" :title="'Похуёвые: ' + player.penalties">
-        <span>!</span> {{ player.penalties }}
+      <div class="seat__penalties" :title="'Похуёвые: ' + player.penalties" :aria-label="'Похуёвые: ' + player.penalties">
+        <span aria-hidden="true">✕</span> {{ player.penalties }}
       </div>
       <span v-if="isTurn" class="seat__turn">ХОД</span>
     </div>
@@ -306,4 +305,98 @@ function selectCard(card: Card) {
 .seat__play-area--no-reserve {grid-template-columns:minmax(0,1fr);}
 .seat--opponent .seat__opponent-cards {display:flex;gap:6px;align-items:center;justify-content:center;min-height:63px;}
 @media(max-width:680px){.seat--opponent .seat__opponent-cards{gap:2px;min-height:45px;}.seat__hand-badge{font-size:9px;padding:3px 4px;}}
+
+/* ━━━━━━━━━━ compact tactile seats ━━━━━━━━━━ */
+.seat--opponent {
+  border:1px solid rgba(219,192,137,.27);
+  border-radius:12px;
+  background:rgba(14,43,30,.84);
+  box-shadow:0 5px 15px rgba(5,20,11,.31),inset 0 1px rgba(255,238,193,.06);
+  padding:8px 9px;
+  min-width:0;
+}
+.seat--me {
+  background:transparent;
+  padding:5px 9px 10px;
+  border:0;
+  box-shadow:none;
+}
+.seat--opponent .seat__avatar,.seat--me .seat__avatar{display:none;}
+.seat__identity{gap:7px;justify-content:space-between;}
+.seat__info{flex:1;min-width:0;}
+.seat__name{
+  font-size:12px;font-weight:800;color:#f1e4cc;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.seat--me .seat__name{font-size:13px;}
+.seat__bot {color:#b0bba3;border:0;background:transparent;font-size:8px;padding:0;margin-left:5px;}
+.seat__meta{font-size:9px;color:#c7aa7a;margin:2px 0 0;}
+.seat__penalties{
+  flex:none;white-space:nowrap;min-width:35px;padding:4px 6px;
+  border:1px solid rgba(221,175,115,.33);background:#302d22;
+  border-radius:15px;font-size:11px;font-weight:850;
+  color:#eacb9c;
+  box-shadow:none;
+}
+.seat__penalties span{color:#d9a879;font-size:10px;}
+.seat__turn {
+  position:absolute;top:-11px;left:50%;right:auto;transform:translateX(-50%);
+  background:#e2bc85;color:#202d22;border-radius:30px;
+  border:1px solid #f3dfbd;box-shadow:0 3px 8px #001509a3;
+  padding:3px 9px;font-size:9px;font-weight:900;
+}
+.seat--turn{border-color:rgba(244,201,125,.95);box-shadow:0 0 0 1px rgba(243,198,123,.65),0 5px 17px rgba(0,0,0,.28),0 0 18px rgba(220,191,108,.19);}
+.seat--opponent .seat__opponent-cards{margin-top:5px;gap:6px;min-height:69px;}
+.seat--opponent .seat__pile {align-self:center;}
+.seat--opponent .seat__pile :deep(.playing-card){--width:51px;}
+.seat--opponent .seat__pile-count{font-size:10px;box-shadow:0 2px 5px #0005;}
+.seat__hand-badge {border-radius:10px;background:rgba(16,45,30,.72);color:#eacb9c;border:1px solid #897554;font-size:10px;}
+.seat--target{
+  cursor:pointer;border-color:#d2b57e;
+  background:rgba(45,75,48,.95);
+  box-shadow:0 0 0 2px rgba(232,199,136,.16),0 0 16px rgba(228,195,129,.17);
+}
+.seat--recommended{
+  border:2px solid #eed094;
+  background:rgba(63,99,57,.93);
+  box-shadow:0 0 0 2px rgba(253,219,146,.2),0 0 27px rgba(245,213,154,.35);
+}
+.seat--recommended::after{
+  content:"✓";position:absolute;right:-6px;top:-8px;background:#efd49e;color:#24412c;
+  border-radius:50%;font-size:12px;font-weight:900;width:19px;height:19px;display:grid;place-items:center;box-shadow:0 3px 8px #0007;
+}
+.seat--recommended.seat--turn{box-shadow:0 0 0 2px rgba(254,215,129,.3),0 0 25px rgba(244,199,100,.3);}
+.seat__stack-button{touch-action:none;cursor:grab;}
+.seat__stack-button:active{cursor:grabbing;}
+.seat__stack-layer--top{animation:pile-card-entry .25s ease-out;}
+.seat__hand-scroll{
+  scroll-behavior:smooth;
+  scrollbar-color:#bc9b72 transparent;
+}
+.seat__hand-scroll--expanded{
+  background:rgba(11,35,23,.47);
+  border:1px solid rgba(209,178,129,.17);
+  border-radius:14px;
+}
+.seat__hand-card:hover {filter:drop-shadow(0 7px 10px rgba(0,0,0,.4));}
+.seat__hand-card--selected {transform:translateY(-9px); }
+@media(max-width:700px) {
+  .seat--opponent{padding:6px 5px;border-radius:9px;}
+  .seat--opponent .seat__identity{gap:4px;}
+  .seat--opponent .seat__name{font-size:10px;}
+  .seat__penalties{font-size:9px;min-width:26px;padding:3px 4px;}
+  .seat__penalties span{font-size:9px;}
+  .seat__turn{font-size:8px;padding:2px 6px;top:-9px;}
+  .seat--opponent .seat__opponent-cards{min-height:50px;gap:2px;}
+  .seat--opponent .seat__pile :deep(.playing-card){--width:40px;}
+  .seat--me {padding:4px 0;}
+}
+@media(max-width:380px){
+  .seat--opponent{padding:5px 3px;}
+  .seat--opponent .seat__name{font-size:9px;}
+  .seat--opponent .seat__pile :deep(.playing-card){--width:35px;}
+  .seat__hand-badge{padding:2px 3px;}
+}
+@media(prefers-reduced-motion:reduce){.seat__stack-layer--top,.seat__hand-scroll{animation:none;scroll-behavior:auto;}}
+
 </style>
