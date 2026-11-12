@@ -514,10 +514,10 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
             <div class="game-board__compact-stat">
               <span>ОТБОЙ</span><b>{{ state.discardPile.length }}</b>
             </div>
-            <div class="game-board__signature" aria-hidden="true">P</div>
-            <div class="game-board__compact-stat">
-              <span>КОЗЫРЬ</span><b :class="{ 'game-board__red': trumpIsRed }">{{ state.trumpSuit ? trumpSymbol : state.phase === 'DEALING' ? '—' : '∅' }}</b>
-            </div>
+            <span v-if="state.phase === 'MAIN_GAME' && state.trumpSuit"
+              class="game-board__trump" :aria-label="'Козырь: ' + state.trumpSuit" title="Козырная масть">
+              козырь <strong :class="{ 'game-board__trump--red': trumpIsRed }">{{ trumpSymbol }}</strong>
+            </span>
           </div>
           <Transition name="draw-reveal">
             <div v-if="gameStore.drawReveal" :key="gameStore.drawReveal.id"
