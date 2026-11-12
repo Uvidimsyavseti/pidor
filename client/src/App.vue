@@ -322,6 +322,12 @@ function deckPoint() {
     x: window.innerWidth / 2 - 42, y: window.innerHeight / 2 - 59,
   });
 }
+let flightQueue: Promise<void> = Promise.resolve();
+function enqueueFlight(card: Card, targetId: string | null, faceUp: boolean, originSeatId?: string): Promise<void> {
+  const next = flightQueue.catch(() => {}).then(() => flyCard(card, targetId, faceUp, originSeatId));
+  flightQueue = next.catch(() => {});
+  return next;
+}
 async function flyCard(card: Card, targetId: string | null, faceUp: boolean, originSeatId?: string) {
   const from = originSeatId ? getCenter(document.querySelector('[data-seat-id="' + CSS.escape(originSeatId) + '"] .seat__cards'), deckPoint()) : deckPoint();
   const target = targetId
@@ -332,7 +338,7 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
   flight.value = { card, hidden: true };
   await nextTick();
   const element = flightRef.value;
-  if (!element) return;
+  if (!element) { flight.value = null; return; }
   element.style.transform = 'translate(' + from.x + 'px,' + from.y + 'px) scale(.87)';
   const ms = reducedMotion ? 70 : 340;
   const motion = element.animate([
@@ -347,9 +353,13 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
       { transform: 'rotateY(88deg)', offset: .5 },
       { transform: 'rotateY(0deg)' },
     ], { duration: ms, fill: 'forwards' });
-    setTimeout(() => { if (flight.value?.card.id === card.id) flight.value = { card, hidden: false }; }, ms / 2);
+    // Flip the actual moving card, not a second card rendered above the deck.
+    const flipTimer = window.setTimeout(() => { if (flight.value?.card.id === card.id) flight.value = { card, hidden: false }; }, ms / 2);
+    try { await motion.finished; } catch { /* interrupted */ }
+    clearTimeout(flipTimer);
+    if (flight.value?.card.id === card.id) flight.value = { card, hidden: false };
   }
-  try { await motion.finished; } catch { /* interrupted */ }
+  if (!faceUp) { try { await motion.finished; } catch { /* interrupted */ } }
   burst(targetId ? 'draw' : 'play', to.x + 42, to.y + 59);
   flight.value = null;
 }
@@ -360,7 +370,7 @@ async function replayInitialDeal(cards: DealEvent[]) {
   await nextTick();
   for (const item of cards) {
     if (token !== dealRun || currentPhase.value !== 'DEALING') break;
-    await flyCard(item.card, item.target, item.faceUp);
+    await enqueueFlight(item.card, item.target, item.faceUp);
     hiddenIds.value = new Set([...hiddenIds.value].filter(id => id !== item.card.id));
     tone('drop');
     if (!reducedMotion) await new Promise(resolve => setTimeout(resolve, 38));
@@ -390,7 +400,7 @@ watch(state, (value, old) => {
   }
   if (value.activeCard?.card.id && value.activeCard.card.id !== old?.activeCard?.card.id) {
     activeFlightId.value = value.activeCard.card.id;
-    void flyCard(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
+    void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
       activeFlightId.value = null;
     });
   }
@@ -608,7 +618,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="table__active-anchor"></div>
         <div v-if="active && activeFlightId !== active.card.id"
-          class="table__active" :class="{ 'table__active--drag': activeDragging }"
+          class="table__active" :class="{ 'table__active--drag': activeDragging, 'table__active--dealing': state.phase === 'DEALING' }"
           :style="activeDragging ? { '--drag-x': dragPoint.x + 'px', '--drag-y': dragPoint.y + 'px' } : {}"
           @pointerdown="onActiveDown"
         >
