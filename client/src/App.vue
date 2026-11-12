@@ -361,22 +361,19 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
 
     <template v-else-if="state">
       <header class="site-header site-header--game">
-        <div class="brand"><span class="brand__mark">P</span><span>PIDOR<span class="brand__dot">.</span></span></div>
-        <div class="header-room">
-          <span>КОМНАТА</span>
-          <strong>{{ state.mode === 'bot' ? 'ПРОТИВ БОТОВ' : (gameStore.tableTitle || gameStore.roomId) }}</strong>
-        </div>
+        <div class="brand">PIDOR <span class="brand__online">ONLINE</span></div>
         <div class="header-actions">
-          <button class="subtle-button lobby-return" type="button" @click="returnToLobby"><span class="desktop-label">⌂ Столы</span><span class="mobile-label">⌂</span></button>
-          <button class="sound-icon" type="button" :aria-label="soundEnabled ? 'Выключить звук' : 'Включить звук'" @click="toggleSound">{{ soundEnabled ? '♫' : '♪' }}</button>
-          <div class="connection" :class="{ 'connection--off': !gameStore.connected }">
+          <div class="connection" :class="{ 'connection--off': !gameStore.connected }" :title="gameStore.connected ? 'Подключено' : 'Нет связи'">
             <span class="status-light"></span>
-            <span>{{ gameStore.connected ? 'В СЕТИ' : 'НЕТ СВЯЗИ' }}</span>
           </div>
-          <button v-if="['DEALING', 'PENALTY_REVIEW', 'MAIN_GAME'].includes(state.phase)" type="button" class="callout-button" @click="accuseOpen = true">ПОХУЁВАЯ!</button>
-          <button class="subtle-button" type="button" @click="showRules = !showRules">{{ showRules ? 'Закрыть' : 'Правила' }}</button>
-          <button v-if="state.mode === 'bot'" class="outline-button" type="button" @click="newGame">Новая партия ↻</button>
-          <button v-else class="outline-button" type="button" @click="invite">{{ copied ? 'Скопировано ✓' : 'Пригласить ↗' }}</button>
+          <button class="subtle-button lobby-return" type="button" aria-label="К столам" title="К столам" @click="returnToLobby">⌂</button>
+          <button class="sound-icon" type="button" :aria-label="soundEnabled ? 'Выключить звук' : 'Включить звук'"
+            :title="soundEnabled ? 'Выключить звук' : 'Включить звук'" @click="toggleSound">{{ soundEnabled ? '♫' : '♪' }}</button>
+          <button v-if="['DEALING', 'PENALTY_REVIEW', 'MAIN_GAME'].includes(state.phase)" type="button"
+            class="callout-button" @click="accuseOpen = true">ПОХУЁВАЯ!</button>
+          <button class="subtle-button" type="button" aria-label="Правила" title="Правила" @click="showRules = !showRules">?</button>
+          <button v-if="state.mode === 'bot'" class="outline-button" type="button" aria-label="Новая партия" title="Новая партия" @click="newGame">↻</button>
+          <button v-else class="outline-button" type="button" aria-label="Пригласить" title="Пригласить" @click="invite">{{ copied ? '✓' : '↗' }}</button>
         </div>
       </header>
 
@@ -424,7 +421,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
 
       <div v-if="showRules" class="rules-sheet">
         <div class="rules-sheet__header"><strong>Кратко о правилах</strong><button type="button" @click="showRules = false" aria-label="Закрыть правила">✕</button></div>
-        <p><b>01 · Набор.</b> Тяните карту по очереди. Карту старше открытой кладите на первую подходящую стопку той же масти по кругу. Шестёрка бьёт туза. Последнюю карту колоды оставьте себе.</p>
+        <p><b>01 · Набор.</b> Перетяни карту из центральной колоды или верхушку своей стопки на другого игрока. Только старшинство: 9 на 8, валет на 10, 6 на туза; пиковую 6 на пикового туза нельзя. Масти здесь не важны. Первоначальные три карты неприкосновенны.</p>
         <p><b>02 · Штрафы.</b> За нарушения игроки получают «хуёвые» — дополнительные карты от остальных. Последнюю карту из руки отдавать нельзя.</p>
         <p><b>03 · Игра.</b> Бейте старшую карту той же масти или козырем, но пику — только пикой. Не можете побить — берите нижнюю. Когда закончится рука, берите похуёвые; когда закончатся и они — выходите.</p>
         <button class="outline-button" type="button" @click="showRules = false">ПОНЯТНО</button>
