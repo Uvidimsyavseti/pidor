@@ -52,27 +52,31 @@ function timerHarness() {
 
 {
   const t=timerHarness();
-  let penalty={playerId:'a',reason:'Ошибка'};
-  const initial=penalty;
-  clearCurrentAfter(initial,()=>penalty,()=>{penalty=null;},PENALTY_NOTICE_MS,t.schedule);
+  let sequence=1;
+  const original={playerId:'a',reason:'Ошибка'};
+  // Proxy simulates Vue/Pinia reactivity: object reference comparison would fail.
+  let penalty=new Proxy(original,{});
+  assert.notEqual(penalty,original,'Reactive proxy changes object identity');
+  clearCurrentAfter(sequence,()=>sequence,()=>{penalty=null;},PENALTY_NOTICE_MS,t.schedule);
   t.advance(PENALTY_NOTICE_MS-1);
-  assert.equal(penalty,initial, 'Warning remains until its expected duration');
+  assert.ok(penalty,'Warning remains until its expected duration');
   t.advance(1);
-  assert.equal(penalty,null,'Warning disappears automatically at 2050ms');
+  assert.equal(penalty,null,'Reactive warning disappears after 2050ms using numeric generation');
 }
 {
   const t=timerHarness();
+  let sequence=1;
   let verdict={correct:true,reason:'Пойман'};
-  const older=verdict;
-  clearCurrentAfter(older,()=>verdict,()=>{verdict=null;},ACCUSATION_VERDICT_MS,t.schedule);
+  clearCurrentAfter(sequence,()=>sequence,()=>{verdict=null;},ACCUSATION_VERDICT_MS,t.schedule);
   t.advance(1000);
+  sequence++;
   verdict={correct:false,reason:'Ложный вызов'};
   const newer=verdict;
-  clearCurrentAfter(newer,()=>verdict,()=>{verdict=null;},ACCUSATION_VERDICT_MS,t.schedule);
+  clearCurrentAfter(sequence,()=>sequence,()=>{verdict=null;},ACCUSATION_VERDICT_MS,t.schedule);
   t.advance(1050);
-  assert.equal(verdict,newer,'Old warning timer cannot delete the newer verdict');
+  assert.equal(verdict,newer,'Older warning timer cannot delete the newer verdict');
   t.advance(1000);
-  assert.equal(verdict,null,'The newer verdict also disappears at 2050ms');
+  assert.equal(verdict,null,'Newer verdict disappears after 2050ms');
 }
 {
   const t=timerHarness();
@@ -88,13 +92,13 @@ function timerHarness() {
 }
 {
   const t=timerHarness();
-  let reveal={id:'first'};
-  const older=reveal;
-  clearCurrentAfter(older,()=>reveal,()=>{reveal=null;},CARD_REVEAL_MS,t.schedule);
+  let sequence=1, reveal={id:'first'};
+  clearCurrentAfter(sequence,()=>sequence,()=>{reveal=null;},CARD_REVEAL_MS,t.schedule);
   t.advance(400);
+  sequence++;
   reveal={id:'second'};
   const newer=reveal;
-  clearCurrentAfter(newer,()=>reveal,()=>{reveal=null;},CARD_REVEAL_MS,t.schedule);
+  clearCurrentAfter(sequence,()=>sequence,()=>{reveal=null;},CARD_REVEAL_MS,t.schedule);
   t.advance(CARD_REVEAL_MS-400);
   assert.equal(reveal,newer,'Next card cannot be dismissed by earlier draw');
   t.advance(400);
@@ -146,8 +150,9 @@ function timerHarness() {
   assert.match(app,/\.verdict-toast,\.penalty-toast\s*\{[\s\S]*?pointer-events:none!important/,'Toast cannot block game taps');
   assert.match(store,/message\.type === 'cardDrawReveal'/);
   assert.match(store,/message\.type === 'accusationVerdict'/);
+  assert.match(store,/\+\+this\.verdictSequence/,'Vue-safe numeric toast sequence is used');
   assert.match(worker,/broadcastDrawReveal\(event:/);
   assert.match(worker,/createDrawReveal\(move\.actorId/,'Bot draws also revealed');
   assert.match(worker,/createDrawReveal\(id, card, before/,'Human draws also revealed');
 }
-console.log('PASS: похуёвые only after manual accusation, correct/false calls, toast 1550–2050ms expiry, replacement safety, public 3D card flip and visibility for three players');
+console.log('PASS: похуёвые only after manual accusation, correct/false calls, toast 1550–2050ms expiry despite Vue proxies, replacement safety, public 3D card flip and visibility for three players');
