@@ -212,6 +212,13 @@ export class PidorRoom extends DurableObject<Env> {
   }
 
   private async driveBots(): Promise<void> {
+    // The first cards must physically reach every seat before any player or
+    // bot starts taking further cards from the common deck.
+    if (this.game.state.phase === 'DEALING' &&
+        this.game.state.initialDealEndsAt && Date.now() < this.game.state.initialDealEndsAt) {
+      if (this.roomMode === 'bot') await this.ctx.storage.setAlarm(this.game.state.initialDealEndsAt);
+      return;
+    }
     if (this.idleDeadline && this.activePlayerIds().length === 0) {
       await this.ctx.storage.setAlarm(this.idleDeadline);
       return;
@@ -234,6 +241,11 @@ export class PidorRoom extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
+    if (this.game.state.phase === 'DEALING' &&
+        this.game.state.initialDealEndsAt && Date.now() < this.game.state.initialDealEndsAt) {
+      await this.ctx.storage.setAlarm(this.game.state.initialDealEndsAt);
+      return;
+    }
     if (this.idleDeadline && this.activePlayerIds().length === 0) {
       if (Date.now() >= this.idleDeadline) await this.clearVacantRoom();
       else await this.ctx.storage.setAlarm(this.idleDeadline);
@@ -376,6 +388,11 @@ export class PidorRoom extends DurableObject<Env> {
       return emit(socket, 'joinError', 'Подключись к комнате');
     }
     const game = this.game;
+    if (game.state.phase === 'DEALING' && game.state.initialDealEndsAt &&
+        Date.now() < game.state.initialDealEndsAt &&
+        ['drawTo','moveTopTo','drawCardFromDeck','takeFromPile','placeActiveCard'].includes(type || '')) {
+      return emit(socket, 'actionError', 'Идёт начальная раздача');
+    }
     if (type === 'accusePlayer' && typeof data.accusedId === 'string') {
       const verdict = game.accuse(id, data.accusedId);
       // Only the outcome is logged (no player names, IDs or card contents).
