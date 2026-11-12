@@ -211,7 +211,7 @@ function switchMode(next: 'friends'|'bot') {
         <h3>Партия с компьютером</h3>
         
         <label class="entry__field"><span>СОПЕРНИКИ</span>
-          <select v-model.number="botCount"><option :value="1">Один бот — дуэль</option><option :value="2">Два бота — втроём</option><option :value="3">Три бота — вчетвером</option></select>
+          <select v-model.number="botCount"><option :value="1">Один бот — дуэль</option><option :value="2">Два бота — втроём</option><option :value="3">Три бота — вчетвером</option><option :value="4">Четыре бота — впятером</option><option :value="5">Пять ботов — вшестером</option></select>
         </label>
         <button class="entry__primary" type="button" :disabled="connecting" @click="enterBot()">{{ connecting ? 'Запускаем…' : 'НАЧАТЬ ИГРУ С БОТОМ' }} <span>✧</span></button>
       </div>
