@@ -617,7 +617,7 @@ async function callTelegram(env, method, body) {
 }
 __name(callTelegram, "callTelegram");
 function miniAppLink(origin, mode) {
-  return origin + (mode === "bot" ? "/api/app?mode=bot&ui=20261112" : "/api/app?mode=friends&ui=20261112");
+  return origin + (mode === "bot" ? "/api/app?mode=bot&ui=20261112-fix2" : "/api/app?mode=friends&ui=20261112-fix2");
 }
 __name(miniAppLink, "miniAppLink");
 async function replyToMessage(env, update, origin) {
@@ -627,7 +627,7 @@ async function replyToMessage(env, update, origin) {
   const command = raw.split(/\s+/)[0].split("@")[0].toLowerCase();
   if (!["/start", "/play", "/game", "/help"].includes(command)) return;
   if (command === "/start") {
-    try { await callTelegram(env, "setChatMenuButton", { menu_button: { type: "web_app", text: "🎮 Играть", web_app: { url: origin + "/api/app?ui=20261112" } } }); }
+    try { await callTelegram(env, "setChatMenuButton", { menu_button: { type: "web_app", text: "🎮 Играть", web_app: { url: origin + "/api/app?ui=20261112-fix2" } } }); }
     catch { /* Optional menu migration; /start links still work. */ }
   }
 
@@ -653,7 +653,7 @@ async function activateBot(env, origin) {
       drop_pending_updates: false
     });
     const menu = await callTelegram(env, "setChatMenuButton", {
-      menu_button: { type: "web_app", text: "\u{1F3AE} \u0418\u0433\u0440\u0430\u0442\u044C", web_app: { url: origin + "/api/app?ui=20261112" } }
+      menu_button: { type: "web_app", text: "\u{1F3AE} \u0418\u0433\u0440\u0430\u0442\u044C", web_app: { url: origin + "/api/app?ui=20261112-fix2" } }
     });
     await callTelegram(env, "setMyCommands", {
       commands: [
