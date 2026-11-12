@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+function source(path) {return readFileSync(new URL(path, import.meta.url),'utf8');}
+const app=source('../client/src/App.vue');
+const arena=source('../client/src/game-arena.css');
+const seat=source('../client/src/components/PlayerSeat.vue');
+const fan=source('../client/src/components/HandFan.vue');
+const pack=source('../client/src/cards/cardPack.ts');
+
+assert.match(app,/void warmCardFaces\(\)/,'Artwork is prewarmed before first draw');
+assert.match(pack,/ranks\.flatMap/,'The card images are prefetched with a bounded pool');
+assert.match(app,/centralDrawCard = computed<Card\|null>/,'Draw reveal immediately appears inside action slot');
+assert.doesNotMatch(app,/<Transition name="draw-reveal">/,'There is no duplicate floating reveal card');
+assert.match(app,/beginHandDrag\(event:PointerEvent,card:Card\)/,'A card from the hand can be grabbed');
+assert.match(app,/event\.clientY < drag\.startY-26/,'Vertical finger movement lifts the selected card');
+assert.match(app,/\[data-hand-card-id\]/,'Sliding the finger changes which fan card is selected');
+assert.match(app,/finishHandDrag\(move:DragSession/,'Main-game release is handled explicitly');
+assert.match(app,/mainNextTargetId\.value/,'Main-game target is determined clockwise');
+assert.match(app,/gameStore\.playCard\(card\.id\)/,'Server remains authoritative over played cards');
+assert.match(app,/if \(hoveredPlayer && hoveredPlayer!==destination\) return/,'Dropping onto wrong player cancels');
+assert.match(seat,/<HandFan v-if="phase === 'MAIN_GAME'"/,'Main hand uses fan, not row');
+assert.match(seat,/@hand-drag-start="\(event,card\) => emit\('handDragStart',event,card\)"/);
+assert.match(fan,/ResizeObserver/,'Fan adapts to changing viewport width');
+assert.match(fan,/calc\(var\(--fan-y\) \+ var\(--fan-lift\)\)/,'Card rises as finger selects it');
+assert.match(fan,/--fan-angle/,'The hand is angled into a fan');
+assert.match(fan,/:disabled="!enabled"/,'Cannot play when not the turn');
+assert.match(arena,/\.game-board__rim\{display:none/,'Decorative nested rim removed');
+assert.match(arena,/\.app-shell--playing \.game-hand\{/,'Hand dock restyled');
+assert.match(arena,/\.gesture-card__inner\{transition-duration:130ms!important/,'Face flip shortened to 130ms');
+console.log('PASS P1: fast true-card reveal, no duplicate overlay, responsive hand fan and clockwise finger-drag actions');
