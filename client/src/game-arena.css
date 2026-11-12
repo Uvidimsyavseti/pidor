@@ -419,3 +419,90 @@
   .game-board__trump-mark{font-size:23px;}
   .game-board__deck-zone:has(.game-board__deck) .game-board__trump-mark{font-size:19px;}
 }
+
+
+/* ─── P0: Physical drag + velocity throw to a seat ─── */
+.game-board__drag-card,
+.game-board__flight-card {
+  position:fixed!important;
+  z-index:251;
+  pointer-events:none!important;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+  will-change:transform;
+}
+.game-board__drag-card {
+  filter:drop-shadow(0 13px 14px rgba(0,0,0,.55));
+}
+.game-board__flight-card {
+  transform:translate(-50%,-50%);
+  filter:drop-shadow(0 14px 12px rgba(0,0,0,.58));
+  animation:seat-card-flight var(--flight-duration,270ms) cubic-bezier(.24,.67,.18,1) both;
+}
+.game-board__flight-card--flick{
+  animation-timing-function:cubic-bezier(.14,.5,.42,1);
+}
+.game-board__action-zone--in-flight{
+  visibility:hidden;
+}
+.gesture-card {
+  --gesture-card-width:clamp(67px,12vw,96px);
+  width:var(--gesture-card-width);
+  aspect-ratio:2/3;
+  perspective:660px;
+}
+.gesture-card__inner{
+  position:relative;
+  width:100%;
+  height:100%;
+  transform-style:preserve-3d;
+  transform:rotateY(0deg);
+  transition:transform 240ms cubic-bezier(.19,.76,.2,1);
+}
+.gesture-card--face-up .gesture-card__inner{
+  transform:rotateY(180deg);
+}
+.gesture-card__side{
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%;height:100%;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+}
+.gesture-card__side--front{transform:rotateY(180deg);}
+.gesture-card__side :deep(.playing-card){
+  --width:var(--gesture-card-width)!important;
+}
+@keyframes seat-card-flight {
+  0% {
+    transform:translate(-50%,-50%) translate(0,0) rotate(-5deg) scale(1.07);
+    opacity:1;
+  }
+  34% {
+    transform:translate(-50%,-50%)
+      translate(calc(var(--flight-dx) * .38),calc(var(--flight-dy) * .38 - 16px))
+      rotate(calc(var(--flight-angle) * .55)) scale(1.1);
+    opacity:1;
+  }
+  85% {
+    transform:translate(-50%,-50%)
+      translate(calc(var(--flight-dx) * .9),calc(var(--flight-dy) * .9 - 3px))
+      rotate(var(--flight-angle)) scale(.96);
+    opacity:1;
+  }
+  100% {
+    transform:translate(-50%,-50%)
+      translate(var(--flight-dx),var(--flight-dy))
+      rotate(var(--flight-angle)) scale(.89);
+    opacity:0;
+  }
+}
+@media(max-width:420px) {
+  .gesture-card{--gesture-card-width:70px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .gesture-card__inner{transition:none;}
+  .game-board__flight-card{animation-duration:100ms!important;}
+}
