@@ -127,7 +127,7 @@ const guidance = computed(() => {
       : 'Выберите карту из руки. Штраф нужно передать отмеченным игрокам.';
   }
   if (state.value.phase === 'MAIN_GAME') {
-    if (canTakeStumps.value) return 'Основные карты закончились — пора взять пеньки.';
+    if (canTakeStumps.value) return 'Основные карты закончились — пора взять похуёвые.';
     if (canExitGame.value) return 'Все карты вышли. Можно закончить игру.';
     if (isMyTurn.value) return 'Побейте верхнюю карту той же мастью или козырем. Можно забрать нижнюю.';
     return 'Ход игрока ' + (turnPlayer.value?.name || '…');
@@ -270,10 +270,6 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
     <div class="ambient ambient--bottom"></div>
 
     <template v-if="!gameStore.joined">
-      <header class="site-header">
-        <div class="brand"><span class="brand__mark">P</span><span>PIDOR<span class="brand__dot">.</span></span></div>
-        <span class="site-header__label">Карточная игра · Онлайн</span>
-      </header>
       <HomeLobby :initial-name="name" :initial-room="room"
         :initial-mode="playMode" :connecting="gameStore.connecting"
         :server-error="gameStore.error" @start="joinFromHome" />
@@ -348,7 +344,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
         <div class="rules-sheet__header"><strong>Кратко о правилах</strong><button type="button" @click="showRules = false" aria-label="Закрыть правила">✕</button></div>
         <p><b>01 · Набор.</b> Тяните карту по очереди. Карту старше открытой кладите на первую подходящую стопку той же масти по кругу. Шестёрка бьёт туза. Последнюю карту колоды оставьте себе.</p>
         <p><b>02 · Штрафы.</b> За нарушения игроки получают «хуёвые» — дополнительные карты от остальных. Последнюю карту из руки отдавать нельзя.</p>
-        <p><b>03 · Игра.</b> Бейте старшую карту той же масти или козырем, но пику — только пикой. Не можете побить — берите нижнюю. Когда закончится рука, берите пеньки; когда закончатся и они — выходите.</p>
+        <p><b>03 · Игра.</b> Бейте старшую карту той же масти или козырем, но пику — только пикой. Не можете побить — берите нижнюю. Когда закончится рука, берите похуёвые; когда закончатся и они — выходите.</p>
         <button class="outline-button" type="button" @click="showRules = false">ПОНЯТНО</button>
       </div>
 
@@ -1279,4 +1275,19 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
 .penalty-reveal__card,.penalty-reveal span {display:none!important;}
 .penalty-reveal strong {font-size:18px!important;letter-spacing:.03em}
 @media(max-width:680px){ .verdict-toast,.penalty-toast{top:calc(env(safe-area-inset-top) + 5px)!important;padding:6px 9px!important;} }
+
+.site-header--game{display:flex;align-items:center;gap:8px;min-width:0;max-width:100%;}
+.site-header--game .header-actions{min-width:0;flex:0 1 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:5px;}
+.site-header--game .brand{flex:0 1 auto;min-width:0;white-space:nowrap;}
+@media(max-width:680px){
+ .site-header--game{padding:8px 9px;gap:5px;flex-wrap:wrap;}
+ .site-header--game .header-actions{flex:1 1 auto;min-width:0;flex-wrap:nowrap;justify-content:flex-end;}
+ .site-header--game .header-actions button{flex:none;}
+ .site-header--game .header-room{display:none;}
+}
+@media(max-width:340px){
+ .site-header--game .brand__mark{display:none;}
+ .site-header--game .brand{font-size:16px;}
+ .site-header--game .callout-button{font-size:8px!important;padding:4px 5px!important;}
+}
 </style>
