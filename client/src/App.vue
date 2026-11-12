@@ -421,7 +421,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
           <div class="table-ornament table-ornament--tr" aria-hidden="true"></div>
           <div class="table-ornament table-ornament--bl" aria-hidden="true"></div>
           <div class="table-ornament table-ornament--br" aria-hidden="true"></div>
-          <div class="opponents">
+          <div class="opponents" :class="'opponents--' + others.length">
             <PlayerSeat
               v-for="p in others" :key="p.id"
               :player="p" :is-me="false"
@@ -433,7 +433,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
           </div>
 
           <div class="table-center">
-            <div class="table-center__label">ИГРОВОЙ СТОЛ</div>
+            <div class="table-center__label">PIDOR ONLINE</div>
             <div class="table-center__cards">
               <div class="table-center__slot table-center__slot--deck">
                 <span class="slot-heading">КОЛОДА</span>
@@ -515,13 +515,13 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
               <span>{{ state.phase === 'DEALING' ? 'По последней карте' : state.trumpSuit ? 'В игре' : 'БЕЗ КОЗЫРЯ' }}</span>
             </div>
             <div class="player-dock__buttons">
-              <button v-if="canDraw" type="button" class="action-button action-button--gold" :class="{ 'action-button--risky': riskyDraw }" @click="drawCard">ВЗЯТЬ ИЗ КОЛОДЫ</button>
+              <span v-if="canDraw && state.phase === 'DEALING'" class="action-hint">Перенеси карту из центральной колоды на игрока</span>
               <button v-if="isMyTurn && state.currentTrick.length && state.phase === 'MAIN_GAME'" type="button" class="action-button action-button--gold" @click="gameStore.takeTrick()">ЗАБРАТЬ НИЖНЮЮ</button>
               <button v-if="canTakeStumps" type="button" class="action-button action-button--gold" @click="gameStore.takeStumps()">БЕРУ ПЕНЬКИ!</button>
               <button v-if="canExitGame" type="button" class="action-button action-button--gold" @click="gameStore.exitGame()">С ПИДОРАМИ НЕ ИГРАЮ!</button>
               <span v-if="state.phase === 'MAIN_GAME' && !isMyTurn && !canTakeStumps && !canExitGame" class="action-hint">Дожидаемся хода</span>
               <span v-else-if="state.phase === 'PENALTY_DISTRIBUTION' && !selectedCard" class="action-hint">Выбери карту для передачи</span>
-              <span v-else-if="state.phase === 'DEALING' && !isMyTurn" class="action-hint">Следи за картами на столе</span>
+
             </div>
           </div>
           <PlayerSeat v-if="me" :player="me" :is-me="true" :is-turn="isMyTurn"
@@ -1174,5 +1174,72 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
 .drag-ghost :deep(.playing-card) { --width:75px; }
 .seat--target { border-color:#eec17c; }
 @media(max-width:680px) { .drag-ghost{width:60px}.drag-ghost :deep(.playing-card){--width:60px} }
+
+
+/* The deck is the physical center of the table; up to five opponents
+   occupy seats around it, and the local player sits along the lower rail. */
+.table-surface { min-height: 530px; overflow: hidden; }
+.table-surface > .opponents { position:absolute; z-index:8; inset:0; display:block; padding:0; min-height:0; overflow:visible; pointer-events:none; }
+.table-surface > .opponents > .seat { position:absolute; pointer-events:auto; width:clamp(118px,14vw,174px); max-width:30%; transform:translateX(-50%); }
+.table-surface > .opponents > .seat:nth-child(1) { top:19px; left:22%; }
+.table-surface > .opponents > .seat:nth-child(2) { top:19px; left:50%; }
+.table-surface > .opponents > .seat:nth-child(3) { top:19px; left:78%; }
+.table-surface > .opponents > .seat:nth-child(4) { top:48%; left:10%; transform:translate(-50%,-50%); }
+.table-surface > .opponents > .seat:nth-child(5) { top:48%; left:90%; transform:translate(-50%,-50%); }
+.table-center { min-height:510px; justify-content:center; padding:125px 22% 42px; }
+.table-center__cards { width:min(560px,100%); max-width:560px; display:grid; grid-template-columns:minmax(74px,1fr) minmax(102px,1.25fr) minmax(74px,1fr); grid-template-rows:minmax(120px,auto) minmax(92px,auto); grid-template-areas:"discard deck trump" "trick deck trump"; justify-items:center; align-items:center; column-gap:12px; row-gap:12px; }
+.table-center__slot--deck { grid-area:deck; z-index:2; align-self:center; width:100%; }
+.table-center__slot--deck .deck-button { filter:drop-shadow(0 12px 14px rgba(8,17,9,.62)); }
+.table-center__slot--deck :deep(.playing-card) { --width:104px; }
+.table-center__slot--discard { grid-area:discard; }
+.table-center__slot--trick { grid-area:trick; min-height:96px; border-radius:19px; }
+.table-center__slot--trump { grid-area:trump; min-height:156px; }
+.table-center__label { position:absolute; top:126px; left:50%; transform:translateX(-50%); white-space:nowrap; }
+@media(min-width:1200px) {
+ .table-surface > .opponents > .seat:nth-child(4) { left:12%; }
+ .table-surface > .opponents > .seat:nth-child(5) { left:88%; }
+ .table-center { padding-left:18%; padding-right:18%; }
+}
+@media(max-width:850px) {
+ .table-surface { min-height:480px; }
+ .table-surface > .opponents > .seat { width:clamp(102px,18vw,145px); max-width:31%; }
+ .table-surface > .opponents > .seat:nth-child(1) { left:18%; }
+ .table-surface > .opponents > .seat:nth-child(3) { left:82%; }
+ .table-center { min-height:460px; padding:125px 17% 30px; }
+ .table-center__cards { grid-template-columns:minmax(60px,1fr) minmax(84px,1.25fr) minmax(60px,1fr); column-gap:6px; row-gap:8px; }
+ .table-center__slot--deck :deep(.playing-card) { --width:83px; }
+ .table-center__label { top:125px; }
+}
+@media(max-width:680px) and (orientation:portrait) {
+ .table-surface { min-height:420px; border-radius:24px; }
+ .table-surface > .opponents > .seat { width:clamp(83px,26vw,115px); max-width:31%; padding:4px; }
+ .table-surface > .opponents > .seat:nth-child(1) { top:15px; left:18%; }
+ .table-surface > .opponents > .seat:nth-child(2) { top:15px; left:50%; }
+ .table-surface > .opponents > .seat:nth-child(3) { top:15px; left:82%; }
+ .table-surface > .opponents > .seat:nth-child(4) { top:55%; left:15%; }
+ .table-surface > .opponents > .seat:nth-child(5) { top:55%; left:85%; }
+ .table-surface > .opponents .seat__avatar { display:none; }
+ .table-surface > .opponents .seat__meta { font-size:8px; }
+ .table-surface > .opponents .seat__name { font-size:10px; }
+ .table-surface > .opponents .seat__opponent-cards { min-height:42px; }
+ .table-center { min-height:400px; padding:125px 17% 26px; }
+ .table-center__cards { width:100%; grid-template-columns:52px minmax(68px,1fr) 52px; grid-template-rows:80px 84px; column-gap:3px; row-gap:6px; }
+ .table-center__label { top:129px; font-size:9px; }
+ .table-center__slot--deck :deep(.playing-card) { --width:68px; }
+ .table-center__slot--trick { min-height:76px; padding:4px 1px; border-radius:14px; }
+ .table-center__slot--trump { min-height:114px; padding:3px; }
+ .trump-display strong { font-size:34px; }
+ .table-center__slot--discard :deep(.playing-card) { --width:40px; }
+ .table-center__slot--discard .empty-slot { width:40px; }
+ .table-center__slot--trick .empty-slot { width:43px; }
+}
+@media(max-width:380px) and (orientation:portrait) {
+ .table-surface > .opponents > .seat { width:90px; }
+ .table-surface > .opponents > .seat:nth-child(4) { left:14%; }
+ .table-surface > .opponents > .seat:nth-child(5) { left:86%; }
+ .table-center { padding-left:16%; padding-right:16%; }
+ .table-center__cards { grid-template-columns:45px minmax(60px,1fr) 45px; }
+ .table-center__slot--deck :deep(.playing-card) { --width:60px; }
+}
 
 </style>
