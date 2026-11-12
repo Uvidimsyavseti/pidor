@@ -69,10 +69,7 @@ function selectCard(card: Card) {
 
     <template v-if="!isMe">
       <div class="seat__opponent-cards">
-        <div class="seat__backs" aria-hidden="true">
-          <CardComponent v-for="n in Math.min(player.hand.length, 3)" :key="n" hidden small />
-          <span v-if="player.hand.length > 3" class="seat__count">+{{ player.hand.length - 3 }}</span>
-        </div>
+        <span v-if="player.hand.length" class="seat__hand-badge" :aria-label="player.hand.length + ' карт на руке'">🂠 {{ player.hand.length }}</span>
         <div v-if="player.stumps.length" class="seat__pile">
           <CardComponent
             :card="['DEALING','PENALTY_REVIEW'].includes(phase) && player.stumps.length >= 3 ? player.stumps[player.stumps.length - 1] : undefined"
@@ -121,8 +118,8 @@ function selectCard(card: Card) {
           <div v-else class="seat__empty-pile" aria-label="Пустая стопка">+</div>
         </div>
 
-        <div v-else class="seat__play-area">
-          <div class="seat__reserved">
+        <div v-else class="seat__play-area" :class="{ 'seat__play-area--no-reserve': !player.stumps.length }">
+          <div v-if="player.stumps.length" class="seat__reserved">
             <span class="seat__section-label">СТОПКА · {{ player.stumps.length }}</span>
             <div class="seat__reserved-cards">
               <CardComponent v-if="player.stumps.length > 1" hidden small />
@@ -304,4 +301,9 @@ function selectCard(card: Card) {
 .seat__empty-pile,.seat__pile-empty { display:grid;place-items:center;min-width:66px;min-height:92px;border:2px dashed #ae996d88;border-radius:13px;background:#0e29236e;color:#d7b477;font:30px Georgia,serif; }
 .seat__pile-empty { min-width:48px;min-height:64px;font-size:20px; }
 @media(max-width:680px){ .seat__empty-pile{min-width:55px;min-height:78px} .seat__pile-empty{min-width:35px;min-height:52px} }
+
+.seat__hand-badge {align-self:center;font-size:11px;font-weight:900;min-width:32px;border-radius:7px;padding:4px 6px;background:#223f34;color:#e5cf9f;text-align:center;border:1px solid #977a4e; }
+.seat__play-area--no-reserve {grid-template-columns:minmax(0,1fr);}
+.seat--opponent .seat__opponent-cards {display:flex;gap:6px;align-items:center;justify-content:center;min-height:63px;}
+@media(max-width:680px){.seat--opponent .seat__opponent-cards{gap:2px;min-height:45px;}.seat__hand-badge{font-size:9px;padding:3px 4px;}}
 </style>
