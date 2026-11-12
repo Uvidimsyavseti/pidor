@@ -283,6 +283,17 @@ export class PidorGame {
     return true;
   }
 
+  moveTopTo(actorId: string, targetId: string): boolean {
+    if (!this.canMoveTopCard(actorId) || this.state.activeCard) return false;
+    const top = this.state.players.find(p => p.id === actorId)!.stumps.at(-1)!;
+    return this.takeFromPile(actorId, top.id) && this.placeActiveCard(actorId, targetId);
+  }
+
+  drawTo(actorId: string, targetId: string): boolean {
+    if (!this.takeFromDeck(actorId)) return false;
+    return !this.state.activeCard || this.placeActiveCard(actorId, targetId);
+  }
+
   placeActiveCard(actorId: string, targetId: string): boolean {
     const actorIdx = this.getPlayerIdx(actorId);
     const targetIdx = this.getPlayerIdx(targetId);
