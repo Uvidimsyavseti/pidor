@@ -143,11 +143,16 @@ function timerHarness() {
   const app=readFileSync(new URL('../client/src/App.vue',import.meta.url),'utf8');
   const store=readFileSync(new URL('../client/src/stores/game.ts',import.meta.url),'utf8');
   const worker=readFileSync(new URL('./cloudflare-worker.ts',import.meta.url),'utf8');
-  assert.match(app,/v-if="gameStore\.drawReveal && gameStore\.drawReveal\.playerId !== gameStore\.playerId"/,
-    'Observers see the public card flip, but drawer uses the real moving card');
-  assert.match(app,/:card="gameStore\.drawReveal\.card"/,'Flip shows actual card face');
-  assert.match(app,/@keyframes draw-reveal-turn/,'Flip transition exists');
-  assert.match(app,/rotateY\(180deg\)/,'Front must become visible during rotation');
+  assert.match(app,/const centralDrawCard = computed<Card\|null>/,
+    'Authoritative revealed card is rendered in the actual table action zone');
+  assert.match(app,/:card="centralDrawCard"/,'The action slot shows the exact public card face');
+  assert.match(app,/<div v-if="centralDrawCard" class="game-board__action-zone"/,
+    'One in-table card, not a disconnected reveal overlay');
+  assert.doesNotMatch(app,/<Transition name="draw-reveal">/,
+    'No duplicate floating card overlay for spectators');
+  const arena=readFileSync(new URL('../client/src/game-arena.css',import.meta.url),'utf8');
+  assert.match(arena,/deck-reveal-fast/,'Immediate in-place reveal animation exists');
+  assert.match(arena,/gesture-card__inner/,'Drag uses a real 3D face flip');
   assert.match(app,/\.verdict-toast,\.penalty-toast\s*\{[\s\S]*?pointer-events:none!important/,'Toast cannot block game taps');
   assert.match(store,/message\.type === 'cardDrawReveal'/);
   assert.match(store,/message\.type === 'accusationVerdict'/);
