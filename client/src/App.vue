@@ -204,12 +204,21 @@ function handleSeatCard({ card, ownerId }: { card: Card; ownerId: string }) {
     tone('select');
   }
 }
+function givePenalty(card: Card, receiverId: string) {
+  if (currentPhase.value !== 'PENALTY_DISTRIBUTION') return;
+  const turn = state.value?.pendingPenaltyTurn;
+  if (turn?.giverId !== game.playerId || turn.receiverId !== receiverId) {
+    showToast('Сейчас карта предназначена другому игроку');
+    return;
+  }
+  dispatchOnce('penalty:' + card.id, () => game.givePenaltyCard(card.id, receiverId));
+  selectedPenalty.value = null;
+  tone('drop');
+}
 function handleSeatClick(targetId: string) {
   if (currentPhase.value === 'DEALING' && active.value) { placeCard(targetId); return; }
   if (currentPhase.value === 'PENALTY_DISTRIBUTION' && selectedPenalty.value) {
-    const card = selectedPenalty.value;
-    dispatchOnce('penalty:' + card.id, () => game.givePenaltyCard(card.id, targetId));
-    selectedPenalty.value = null;
+    givePenalty(selectedPenalty.value, targetId);
     return;
   }
   if (targetId !== game.playerId) selectedAccused.value = targetId;
@@ -472,7 +481,7 @@ onBeforeUnmount(() => {
           v-for="entry in seats"
           :key="entry.player.id"
           class="table__seat"
-          :class="['table__seat--' + entry.slot, { 'table__seat--target': dragTarget === entry.player.id }]"
+          :class="['table__seat--' + entry.slot, { 'table__seat--target': dragTarget === entry.player.id || (state.phase === 'PENALTY_DISTRIBUTION' && state.pendingPenaltyTurn?.receiverId === entry.player.id) }]"
         >
           <PlayerSeat
             :player="entry.player"
@@ -544,10 +553,18 @@ onBeforeUnmount(() => {
           <button v-if="me && !me.hand.length && me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill" @click="game.takeStumps()">Беру пеньки</button>
           <button v-if="me && !me.hand.length && !me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill action-pill--quiet" @click="game.exitGame()">Выйти</button>
         </div>
-        <div v-if="me" class="hand-area__label">{{ me.name }} · {{ me.hand.length }} карт</div>
+        <div v-if="me" class="hand-area__label">
+          {{ state.phase === 'PENALTY_DISTRIBUTION' && state.pendingPenaltyTurn?.giverId === game.playerId
+            ? 'Передай карту: ' + (state.players.find(p => p.id === state.pendingPenaltyTurn?.receiverId)?.name || '')
+            : me.name + ' · ' + me.hand.length + ' карт' }}
+        </div>
         <HandFan v-if="me && ['MAIN_GAME', 'PENALTY_DISTRIBUTION'].includes(state.phase)" :cards="me.hand"
-          :disabled="state.phase === 'MAIN_GAME' ? !canPlay : animationLocked"
-          @play="state.phase === 'MAIN_GAME' ? playCard($event) : (selectedPenalty = $event)"
+          :disabled="state.phase === 'MAIN_GAME' ? !canPlay : (state.pendingPenaltyTurn?.giverId !== game.playerId || animationLocked || !!pending)"
+          :allow-seat-drop="state.phase === 'PENALTY_DISTRIBUTION'"
+          :selected-card-id="selectedPenalty?.id"
+          @give="givePenalty"
+          @choose="selectedPenalty = $event"
+          @play="playCard"
           @select="tone('select')" @hover="fanHover = $event"
         />
       </footer>
