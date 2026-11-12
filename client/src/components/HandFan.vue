@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Card } from '@shared/types';
 import CardComponent from './CardComponent.vue';
 
-const props = withDefaults(defineProps<{ cards: Card[]; disabled?: boolean; allowSeatDrop?: boolean }>(), { disabled: false, allowSeatDrop: false });
+const props = withDefaults(defineProps<{ cards: Card[]; disabled?: boolean; allowSeatDrop?: boolean; selectedCardId?: string | null }>(), { disabled: false, allowSeatDrop: false, selectedCardId: null });
 const emit = defineEmits<{ play: [card: Card]; give: [card: Card, receiverId: string]; choose: [card: Card]; select: []; hover: [over: boolean] }>();
 const root = ref<HTMLElement | null>(null);
 const index = ref(-1);
@@ -145,7 +145,7 @@ onBeforeUnmount(() => { clearTimeout(releaseTimer); resize?.disconnect(); });
         v-for="(card, i) in cards"
         :key="card.id"
         class="hand-fan__slot"
-        :class="{ 'hand-fan__slot--active': i === index, 'hand-fan__slot--dragging': dragging && i === index }"
+        :class="{ 'hand-fan__slot--active': i === index || (index < 0 && card.id === selectedCardId), 'hand-fan__slot--dragging': dragging && i === index }"
         :style="{ '--fan-x': cardX(i) + 'px', '--fan-angle': cardAngle(i) + 'deg', zIndex: i === index ? cards.length + 1 : i }"
       >
         <CardComponent :card="card" />
