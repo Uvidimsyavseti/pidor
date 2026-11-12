@@ -38,7 +38,7 @@ async function callTelegram<T = unknown>(
 }
 
 function miniAppLink(origin: string, mode?: 'friends' | 'bot'): string {
-  return origin + (mode === 'bot' ? '/?mode=bot' : '/?mode=friends');
+  return origin + (mode === 'bot' ? '/api/app?mode=bot' : '/api/app?mode=friends');
 }
 
 async function replyToMessage(env: TelegramEnv, update: TelegramUpdate, origin: string) {
@@ -74,7 +74,7 @@ async function activateBot(env: TelegramEnv, origin: string): Promise<Response> 
         drop_pending_updates: false
       });
       const menu = await callTelegram(env, 'setChatMenuButton', {
-        menu_button: { type: 'web_app', text: '🎮 Играть', web_app: { url: origin } }
+        menu_button: { type: 'web_app', text: '🎮 Играть', web_app: { url: origin + '/api/app' } }
       });
       await callTelegram(env, 'setMyCommands', {
         commands: [
