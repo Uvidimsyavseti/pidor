@@ -22,7 +22,7 @@ export interface Player {
   id: string;
   name: string;
   hand: Card[];
-  stumps: Card[]; // [faceDown, faceDown, faceUp, ...additionalCards]
+  stumps: Card[]; // With underlays: [faceDown, faceDown, faceUp, ...]; without: [faceUp, ...]
   penalties: number; // "Хуёвые"
   isReady: boolean;
   onDuty: boolean; // "На вахте"
@@ -34,7 +34,9 @@ export interface GameState {
   phase: GamePhase;
   mode?: 'friends' | 'bot';
   hostId?: string;
-  underlaidCards?: boolean; // true: three fixed starting cards, two kept beneath the hand
+  underlaidCards?: boolean; // false: one immovable open starter; true: two hidden + one open starter
+  initialDealAt?: number; // Shared absolute start of animated clockwise initial dealing
+  initialDealEndsAt?: number; // Reject player/bot moves until the animation has ended
   players: Player[];
   deck: Card[];
   trumpSuit: Suit | null;
