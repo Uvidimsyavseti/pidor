@@ -1,5 +1,5 @@
 import type { Card, Suit, Rank, GameState } from '../shared/types.js';
-import { INITIAL_DEAL_LEAD_MS, initialDealDuration, initialCardCount } from '../shared/initialDeal.js';
+import { INITIAL_DEAL_LEAD_MS, initialDealDuration, initialCardCount } from '../shared/initialDeal.ts';
 
 export const RANKS: Rank[] = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
