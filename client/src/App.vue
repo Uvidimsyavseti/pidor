@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useGameStore } from './stores/game';
 import PlayerSeat from './components/PlayerSeat.vue';
 import CardComponent from './components/CardComponent.vue';
@@ -30,10 +30,8 @@ const copied = ref(false);
 const showRules = ref(false);
 const accuseOpen = ref(false);
 const latestDraw = ref<{ playerId: string; outOfTurn: boolean; forcedSelf: boolean; createdAt: number } | null>(null);
-const deckPointerStart = ref<{x: number; y: number} | null>(null);
-const deckDragY = ref(0);
-const deckDragX = ref(0);
-const ignoreClickUntil = ref(0);
+const dragging = ref<{kind:'deck'|'pile';pointerId:number;x:number;y:number;card:Card|null}|null>(null);
+const dragTarget = ref<string|null>(null);
 const playMode = ref<'friends' | 'bot'>(new URLSearchParams(window.location.search).get('mode') === 'bot' ? 'bot' : 'friends');
 
 onMounted(() => {
@@ -159,8 +157,7 @@ function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
   if (!state.value) return;
   haptic();
   if (state.value.phase === 'DEALING') {
-    if (targeting.value) gameStore.placeActiveCard(ownerId);
-    else if (ownerId === gameStore.playerId && isMyTurn.value) gameStore.takeFromPile(card.id);
+    return;
   } else if (state.value.phase === 'MAIN_GAME') {
     if (isMyTurn.value) gameStore.playCard(card.id);
   } else if (state.value.phase === 'PENALTY_DISTRIBUTION' && ownerId === gameStore.playerId && myPenaltyTurn.value) {
@@ -169,8 +166,7 @@ function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
 }
 function handleSeatClick(playerId: string) {
   haptic();
-  if (targeting.value) { playSound('place'); gameStore.placeActiveCard(playerId); }
-  else if (penaltyTargeting.value && selectedCard.value && penaltyTargets.value.some(p => p.id === playerId)) {
+  if (penaltyTargeting.value && selectedCard.value && penaltyTargets.value.some(p => p.id === playerId)) {
     gameStore.givePenaltyCard(selectedCard.value.id, playerId);
     selectedCard.value = null;
   }
@@ -188,38 +184,43 @@ function readyReview() {
 function drawCard() {
   if (canDraw.value) { haptic(); playSound('draw'); gameStore.drawCardFromDeck(); }
 }
-function beginDeckSwipe(event: PointerEvent) {
-  if (!canDraw.value) return;
-  deckPointerStart.value = { x: event.clientX, y: event.clientY };
-  deckDragX.value = 0;
-  deckDragY.value = 0;
-  (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+function beginDrag(event: PointerEvent, kind: 'deck' | 'pile') {
+  if (state.value?.phase !== 'DEALING' || state.value.activeCard) return;
+  if (kind === 'deck' && !canDraw.value) return;
+  if (kind === 'pile' && (!isMyTurn.value || !me.value || me.value.stumps.length < 2)) return;
+  event.preventDefault();
+  dragging.value = {kind, pointerId:event.pointerId, x:event.clientX,
+    y:event.clientY, card:kind === 'pile' ? me.value!.stumps.at(-1)! : null};
+  haptic();
 }
-function moveDeckSwipe(event: PointerEvent) {
-  if (!deckPointerStart.value) return;
-  deckDragY.value = Math.min(25, Math.max(-90, event.clientY - deckPointerStart.value.y));
-  deckDragX.value = Math.min(45, Math.max(-45, event.clientX - deckPointerStart.value.x));
+function handleDragMove(event: PointerEvent) {
+  if (!dragging.value || dragging.value.pointerId !== event.pointerId) return;
+  dragging.value = {...dragging.value, x:event.clientX, y:event.clientY};
+  dragTarget.value = document.elementFromPoint(event.clientX,event.clientY)
+    ?.closest('[data-player-id]')?.getAttribute('data-player-id') || null;
 }
-function endDeckSwipe(event: PointerEvent) {
-  if (!deckPointerStart.value) return;
-  const distance = Math.hypot(event.clientX - deckPointerStart.value.x, event.clientY - deckPointerStart.value.y);
-  const isSwipe = distance > 42;
-  deckPointerStart.value = null;
-  deckDragX.value = 0;
-  deckDragY.value = 0;
-  if (isSwipe) {
-    ignoreClickUntil.value = Date.now() + 450;
-    drawCard();
-  }
+function finishDrag(event: PointerEvent) {
+  if (!dragging.value || dragging.value.pointerId !== event.pointerId) return;
+  const move = dragging.value;
+  const target = document.elementFromPoint(event.clientX,event.clientY)
+    ?.closest('[data-player-id]')?.getAttribute('data-player-id');
+  dragging.value = null;
+  dragTarget.value = null;
+  if (!target || !state.value?.players.some(p => p.id === target)) return;
+  if (move.kind === 'deck') gameStore.drawTo(target);
+  else gameStore.moveTopTo(target);
+  playSound('place');
+  haptic();
 }
-function clickDeck() {
-  if (Date.now() > ignoreClickUntil.value) drawCard();
-}
-function cancelDeckSwipe() {
-  deckPointerStart.value = null;
-  deckDragX.value = 0;
-  deckDragY.value = 0;
-}
+function cancelDrag() { dragging.value = null; dragTarget.value = null; }
+window.addEventListener('pointermove',handleDragMove);
+window.addEventListener('pointerup',finishDrag);
+window.addEventListener('pointercancel',cancelDrag);
+onUnmounted(() => {
+  window.removeEventListener('pointermove',handleDragMove);
+  window.removeEventListener('pointerup',finishDrag);
+  window.removeEventListener('pointercancel',cancelDrag);
+});
 async function invite() {
   haptic();
   const id = gameStore.joined ? gameStore.roomId : room.value;
