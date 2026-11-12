@@ -478,14 +478,15 @@ watch(state, (value, old) => {
     // Never keep the drawn card in a phantom drag state.
     if (deckGestureHeld.value) { activeDragging.value = true; deckDragPreview.value = false; }
     else { activeDragging.value = false; dragTarget.value = null; }
-    if (pendingDropTarget.value && value.activeCard.ownerId === game.playerId) {
+    const queuedDrop = Boolean(pendingDropTarget.value && value.activeCard.ownerId === game.playerId);
+    if (queuedDrop && pendingDropTarget.value) {
       const destination = pendingDropTarget.value;
       pendingDropTarget.value = null;
       queueMicrotask(() => placeCard(destination));
     }
     if (value.activeCard.fromDeck && value.activeCard.ownerId === game.playerId) showToast('Карта открыта — перетащи её на игрока или нажми на его стопку');
     activeFlightId.value = value.activeCard.card.id;
-    if (!deckGestureHeld.value && !pendingDropTarget.value && !activeDragging.value) void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
+    if (!deckGestureHeld.value && !queuedDrop && !activeDragging.value) void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
       activeFlightId.value = null;
     });
   }
