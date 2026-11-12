@@ -72,8 +72,8 @@ function selectCard(card: Card) {
         <span v-if="player.hand.length" class="seat__hand-badge" :aria-label="player.hand.length + ' карт на руке'">🂠 {{ player.hand.length }}</span>
         <div v-if="player.stumps.length" class="seat__pile">
           <CardComponent
-            :card="['DEALING','PENALTY_REVIEW'].includes(phase) && player.stumps.length >= 3 ? player.stumps[player.stumps.length - 1] : undefined"
-            :hidden="!['DEALING','PENALTY_REVIEW'].includes(phase) || player.stumps.length < 3"
+            :card="['DEALING','PENALTY_REVIEW'].includes(phase) && player.stumps.length >= (underlaidCards === false ? 1 : 3) ? player.stumps[player.stumps.length - 1] : undefined"
+            :hidden="!['DEALING','PENALTY_REVIEW'].includes(phase) || player.stumps.length < (underlaidCards === false ? 1 : 3)"
             small
           />
           <span class="seat__pile-count">{{ player.stumps.length }}</span>
