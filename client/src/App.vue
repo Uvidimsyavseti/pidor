@@ -6,6 +6,7 @@ import CardComponent from './components/CardComponent.vue';
 import HomeLobby from './components/HomeLobby.vue';
 import { playSound, soundEnabled, toggleSound } from './audio/gameAudio';
 import type { Card } from '@shared/types';
+import { warmCardFaces } from './cards/cardPack';
 import { resolveCardGesture, type GesturePoint, type ThrowSeat } from './gestures/cardThrow';
 
 interface TelegramWebApp {
@@ -43,13 +44,14 @@ const copied = ref(false);
 const showRules = ref(false);
 const accuseOpen = ref(false);
 type DragSession = {
-  kind:'deck'|'pile'|'active';pointerId:number;x:number;y:number;
+  kind:'deck'|'pile'|'active'|'hand';pointerId:number;x:number;y:number;
   startX:number;startY:number;card:Card|null;deckBefore:number;
   samples:GesturePoint[];
+  handLifted?: boolean;
 };
 type FlyingCard = {
   card:Card|null;fromX:number;fromY:number;dx:number;dy:number;
-  duration:number;angle:number;deckBefore:number;kind:'drop'|'flick';source:'deck'|'pile'|'active';
+  duration:number;angle:number;deckBefore:number;kind:'drop'|'flick';source:'deck'|'pile'|'active'|'hand';
 };
 const dragging = ref<DragSession|null>(null);
 const flying = ref<FlyingCard|null>(null);
@@ -60,7 +62,12 @@ function clearFlight() {
   flying.value = null;
 }
 onUnmounted(clearFlight);
-const movingCardId = computed(() => dragging.value?.card?.id || flying.value?.card?.id || null);
+const movingCardId = computed(() => (
+  (dragging.value?.kind !== 'hand' || dragging.value.handLifted ? dragging.value?.card?.id : null)
+  || flying.value?.card?.id || null
+));
+const handPreviewCardId = ref<string|null>(null);
+let lastHandPointerUpAt=0;
 
 const deckRequestPending = ref(false);
 const initialDealLocked = ref(false);
@@ -92,6 +99,7 @@ function syncTelegramViewport() {
   }
 }
 onMounted(() => {
+  void warmCardFaces();
   tg?.ready?.();
   if (isTelegramMiniApp) {
     document.documentElement.classList.add('tg-locked');
@@ -140,6 +148,15 @@ const others = computed(() => {
 const isMyTurn = computed(() => state.value?.players[state.value.turnIndex]?.id === gameStore.playerId);
 const turnPlayer = computed(() => state.value?.players[state.value.turnIndex]);
 const isHost = computed(() => state.value?.hostId === gameStore.playerId);
+const mainNextTargetId = computed(() => {
+  if (state.value?.phase !== 'MAIN_GAME' || !state.value.players.length) return null;
+  const players=state.value.players;
+  for(let step=1;step<=players.length;step++){
+    const p=players[(state.value.turnIndex+step)%players.length];
+    if (p && !p.hasExited) return p.id;
+  }
+  return null;
+});
 const phaseLabel = computed(() => ({
   LOBBY: 'Лобби', DEALING: 'Набор карт', PENALTY_REVIEW: 'Разбор нарушений',
   PENALTY_DISTRIBUTION: 'Штрафные карты', MAIN_GAME: 'Основная игра',
@@ -159,6 +176,7 @@ const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.valu
 // recommended outline; other targets remain interactive for possible cheating.
 function isRecommendedTarget(playerId: string): boolean {
   if (!state.value || !dragging.value?.card) return false;
+  if (state.value.phase === 'MAIN_GAME') return mainNextTargetId.value === playerId;
   const players = state.value.players;
   const actorIdx = players.findIndex(p => p.id === gameStore.playerId);
   if (actorIdx < 0) return false;
@@ -203,7 +221,11 @@ function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
   if (state.value.phase === 'DEALING') {
     return;
   } else if (state.value.phase === 'MAIN_GAME') {
-    if (isMyTurn.value) gameStore.playCard(card.id);
+    // Pointer gestures already handle one/two-tap and dragging. Keyboard
+    // activation still supports select then confirm without a drag.
+    if (Date.now()-lastHandPointerUpAt < 320 || !isMyTurn.value) return;
+    if (selectedCard.value?.id === card.id) gameStore.playCard(card.id);
+    else selectedCard.value=card;
   } else if (state.value.phase === 'PENALTY_DISTRIBUTION' && ownerId === gameStore.playerId && myPenaltyTurn.value) {
     selectedCard.value = selectedCard.value?.id === card.id ? null : card;
   }
@@ -288,6 +310,53 @@ watch(() => gameStore.gameState?.phase, phase => {
     clearFlight();
   }
 });
+function beginHandDrag(event:PointerEvent,card:Card) {
+  if (state.value?.phase !== 'MAIN_GAME' || !isMyTurn.value || dragging.value) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const el=event.currentTarget;
+  if (el instanceof HTMLElement) {
+    try { el.setPointerCapture(event.pointerId); } catch { /* browser may reject */ }
+  }
+  handPreviewCardId.value=card.id;
+  dragging.value={
+    kind:'hand',pointerId:event.pointerId,x:event.clientX,y:event.clientY,
+    startX:event.clientX,startY:event.clientY,card,deckBefore:state.value.deck.length,
+    handLifted:false,samples:[{x:event.clientX,y:event.clientY,t:performance.now()}]
+  };
+}
+function finishHandDrag(move:DragSession,event:PointerEvent,samples:GesturePoint[]) {
+  const moved=Math.hypot(event.clientX-move.startX,event.clientY-move.startY);
+  const isLifted=Boolean(move.handLifted);
+  const card=move.card;
+  dragging.value=null;
+  dragTarget.value=null;
+  handPreviewCardId.value=null;
+  lastHandPointerUpAt=Date.now();
+  if (!card || !state.value || !isMyTurn.value) return;
+  if (!isLifted || moved<24) {
+    // Single tap highlights; second tap confirms (keyboard-friendly too).
+    if (selectedCard.value?.id===card.id) { gameStore.playCard(card.id); selectedCard.value=null; }
+    else selectedCard.value=card;
+    return;
+  }
+  const destination=mainNextTargetId.value;
+  const seat=seatTargets().find(s=>s.id===destination);
+  const under=document.elementFromPoint(event.clientX,event.clientY);
+  const hoveredPlayer=under?.closest('[data-player-id]')?.getAttribute('data-player-id');
+  if (hoveredPlayer && hoveredPlayer!==destination) return; // wrong seat
+  const overTable=Boolean(under?.closest('.game-board'));
+  const gesture=seat ? resolveCardGesture(samples,[seat]) : {targetId:null,kind:'cancel' as const,speed:0};
+  // A slow release anywhere on the felt is fine: in the MAIN phase there
+  // is exactly one clockwise target and the server still verifies the card.
+  if ((!overTable && gesture.targetId!==destination) || !seat) return;
+  animateCardFlight({...move,x:event.clientX,y:event.clientY},seat,
+    gesture.kind==='flick'?'flick':'drop',gesture.speed);
+  selectedCard.value=null;
+  gameStore.playCard(card.id);
+  playSound('place');
+  haptic();
+}
 function beginDrag(event: PointerEvent, kind: 'deck' | 'pile' | 'active') {
   if (state.value?.phase !== 'DEALING' || initialDealLocked.value) return;
   if (kind === 'deck' && !canDraw.value) return;
@@ -335,6 +404,22 @@ function handleDragMove(event: PointerEvent) {
   const drag = dragging.value;
   if (!drag || drag.pointerId !== event.pointerId) return;
   const samples = addDragSample(drag,event.clientX,event.clientY,performance.now());
+  if (drag.kind === 'hand') {
+    // Slide sideways across the fan to pick a different card; once lifted,
+    // lock the chosen card and let it follow the finger over the felt.
+    const lifted=Boolean(drag.handLifted) || event.clientY < drag.startY-26;
+    let card=drag.card;
+    if (!lifted) {
+      const under=document.elementFromPoint(event.clientX,event.clientY);
+      const id=under?.closest('[data-hand-card-id]')?.getAttribute('data-hand-card-id');
+      const next=me.value?.hand.find(c=>c.id===id);
+      if (next) card=next;
+    }
+    handPreviewCardId.value=card?.id||null;
+    dragging.value={...drag,x:event.clientX,y:event.clientY,samples,card,handLifted:lifted};
+    dragTarget.value=lifted ? mainNextTargetId.value : null;
+    return;
+  }
   dragging.value = {...drag,x:event.clientX,y:event.clientY,samples};
   const exclude = drag.kind === 'pile' ? [gameStore.playerId] : [];
   dragTarget.value = resolveCardGesture(samples,seatTargets(),exclude).targetId;
@@ -358,6 +443,7 @@ function finishDrag(event: PointerEvent) {
   const move=dragging.value;
   if (!move || move.pointerId !== event.pointerId) return;
   const samples=addDragSample(move,event.clientX,event.clientY,performance.now());
+  if (move.kind==='hand') { finishHandDrag(move,event,samples); return; }
   const exclude=move.kind === 'pile' ? [gameStore.playerId] : [];
   const seats=seatTargets();
   const result=resolveCardGesture(samples,seats,exclude);
@@ -381,7 +467,7 @@ function finishDrag(event: PointerEvent) {
   playSound('place');
   haptic();
 }
-function cancelDrag() { dragging.value=null; dragTarget.value=null; }
+function cancelDrag() { dragging.value=null; dragTarget.value=null; handPreviewCardId.value=null; }
 window.addEventListener('pointermove',handleDragMove,{passive:true});
 window.addEventListener('pointerup',finishDrag);
 window.addEventListener('pointercancel',cancelDrag);
@@ -654,7 +740,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
           </Transition>
         </div>
 
-        <div v-if="dragging" class="game-board__drag-card" :style="{left:dragging.x+'px',top:dragging.y+'px'}" aria-hidden="true">
+        <div v-if="dragging && (dragging.kind !== 'hand' || dragging.handLifted)" class="game-board__drag-card" :style="{left:dragging.x+'px',top:dragging.y+'px'}" aria-hidden="true">
           <div class="gesture-card" :class="{ 'gesture-card--face-up': !!dragging.card }">
             <div class="gesture-card__inner">
               <div class="gesture-card__side gesture-card__side--back"><CardComponent hidden /></div>
@@ -702,7 +788,9 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
             :incoming-card="state.trickTargetId === gameStore.playerId ? state.currentTrick[state.currentTrick.length - 1] : null"
             :incoming-count="state.trickTargetId === gameStore.playerId ? state.currentTrick.length : 0"
             :targetable="!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId)"
+            :preview-card-id="handPreviewCardId"
             @click="handleSeatClick(gameStore.playerId)" @drag-start="beginDrag($event, 'pile')"
+            @hand-drag-start="beginHandDrag"
             @card-click="handleCardClick" />
         </section>
 
