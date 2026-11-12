@@ -15,7 +15,7 @@ const emit = defineEmits<{
   cardClick: [event: { card: Card; ownerId: string }];
   click: [];
 }>();
-const topCard = computed(() => props.player.stumps.at(-1));
+const topCard = computed(() => props.player.stumps[props.player.stumps.length - 1]);
 const visibleStumps = computed(() => props.player.stumps.filter(c => !props.hiddenCardIds?.has(c.id)));
 const handSize = computed(() => props.player.hand.length);
 const closedStartCount = computed(() => props.player.stumps.length >= 3 ? 2 : 0);
@@ -50,7 +50,7 @@ function touchTop(e: Event) {
       </template>
       <template v-else>
         <div v-if="player.stumps.length" class="seat__pile-card">
-          <CardComponent :card="player.stumps.at(-1)" :hidden="!isMe" small />
+          <CardComponent :card="player.stumps[player.stumps.length - 1]" :hidden="!isMe" small />
         </div>
         <div v-if="!isMe && handSize > 0" class="seat__closed-hand">
           <CardComponent hidden small />
