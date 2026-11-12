@@ -117,26 +117,20 @@ function switchMode(next: 'friends'|'bot') {
 <template>
   <main class="entry" data-testid="home-lobby">
     <section class="entry__story">
-      <div class="entry__eyebrow"><span class="entry__live-dot"></span> КАРТОЧНЫЙ КЛУБ · ОНЛАЙН</div>
-      <h1>Вечер<br/>за <em>картами.</em></h1>
-      <p class="entry__lead">Деревянный стол, колода из 36 карт и компания, которая знает, что иногда можно схитрить.</p>
+      <h1>PIDOR<br/><em>ONLINE.</em></h1>
       <div class="entry__card-scene" aria-hidden="true">
         <div class="entry__fan">
           <div v-for="(card,i) in artCards" :key="card.id" class="entry__fan-card" :class="'entry__fan-card--' + i"><CardComponent :card="card" /></div>
           <div class="entry__fan-shadow"></div>
         </div>
-        <div class="entry__card-caption">♣ &nbsp; СВОИ ПРАВИЛА · СВОЯ КОМПАНИЯ &nbsp; ♥</div>
+        
       </div>
-      <div class="entry__facts">
-        <span>✥ &nbsp; 2–6 игроков</span>
-        <span>♠ &nbsp; 36 карт</span>
-        <span>✧ &nbsp; Без установки</span>
-      </div>
+
     </section>
 
     <section class="entry__panel">
       <div class="entry__panel-head">
-        <div><div class="entry__mini-label">ДОБРО ПОЖАЛОВАТЬ</div><h2>Выбирай свой стол</h2></div>
+        <div><h2>Выбери стол</h2></div>
         <button type="button" class="entry__audio" :aria-label="soundEnabled ? 'Выключить звук' : 'Включить звук'" @click="toggleSound">{{ soundEnabled ? '♫ Звук вкл.' : '♪ Звук выкл.' }}</button>
       </div>
       <label class="entry__field"><span>ИМЯ ИГРОКА</span>
@@ -168,7 +162,7 @@ function switchMode(next: 'friends'|'bot') {
           <div v-else-if="!tables.length" class="entry__no-tables">
             <div class="entry__no-tables-icon">♧</div>
             <strong>Пока тихо у камина</strong>
-            <span>Первый стол будет твоим. Друзья смогут к нему присоединиться.</span>
+            <span>Создай стол и пригласи друзей.</span>
           </div>
           <div v-else class="entry__table-list">
             <button v-for="table in tables" :key="table.id" type="button"
@@ -182,7 +176,7 @@ function switchMode(next: 'friends'|'bot') {
             {{ connecting || busy ? 'Подключаемся…' : tables.length ? 'БЫСТРО СЕСТЬ ЗА СТОЛ' : 'ОТКРЫТЬ ПЕРВЫЙ СТОЛ' }}
             <span>✧</span>
           </button>
-          <p class="entry__helper">Идущие партии скрыты. Пустые столы освобождаются автоматически.</p>
+          
         </div>
 
         <form v-else-if="tab === 'create'" class="entry__create" @submit.prevent="createRoom()">
@@ -197,12 +191,12 @@ function switchMode(next: 'friends'|'bot') {
             <span class="entry__switch" :class="{ active: privateTable }"></span>
           </button>
           <button type="submit" class="entry__primary" :disabled="busy || connecting">{{ busy ? 'Открываем…' : 'СОЗДАТЬ СТОЛ' }} <span>✧</span></button>
-          <p class="entry__helper">Ты будешь первым игроком, остальные подключатся по ссылке.</p>
+          
         </form>
 
         <form v-else class="entry__create" @submit.prevent="enterCode()">
           <label class="entry__field"><span>КОД КОМНАТЫ ИЛИ ССЫЛКА</span><input v-model="inviteCode" autocomplete="off" spellcheck="false" placeholder="t_... или https://.../?room=..." data-testid="room-code"/></label>
-          <p class="entry__helper">Если друг отправил приглашение, вставь его сюда. Идущая партия закрыта для новых игроков.</p>
+          
           <button type="submit" class="entry__primary" :disabled="connecting">ПРИСОЕДИНИТЬСЯ <span>↗</span></button>
           <button type="button" class="entry__secondary" @click="tab = 'tables'; void refresh()">Посмотреть свободные столы</button>
         </form>
@@ -215,14 +209,14 @@ function switchMode(next: 'friends'|'bot') {
         </div>
         <div class="entry__bot-portrait">♠ <span>♜</span> ♣</div>
         <h3>Партия с компьютером</h3>
-        <p>Боты следуют правилам, могут заметить нарушение и играют без ожидания других людей.</p>
+        
         <label class="entry__field"><span>СОПЕРНИКИ</span>
           <select v-model.number="botCount"><option :value="1">Один бот — дуэль</option><option :value="2">Два бота — втроём</option><option :value="3">Три бота — вчетвером</option></select>
         </label>
         <button class="entry__primary" type="button" :disabled="connecting" @click="enterBot()">{{ connecting ? 'Запускаем…' : 'НАЧАТЬ ИГРУ С БОТОМ' }} <span>✧</span></button>
       </div>
       <div v-if="error || serverError" class="entry__error" role="alert">{{ serverError || error }}</div>
-      <div class="entry__footnote"><span class="entry__live-dot"></span> Живые комнаты · Telegram Mini App · 36 карт</div>
+      
     </section>
   </main>
 </template>
@@ -349,4 +343,10 @@ function switchMode(next: 'friends'|'bot') {
 .entry__base-mode button{min-width:0;border:1px solid transparent;background:transparent;border-radius:7px;color:#d7cab0;min-height:39px;padding:7px 5px;cursor:pointer;font-size:11px;font-weight:800}
 .entry__base-mode button.active{color:#302315;border-color:#f6d99b;background:linear-gradient(150deg,#efd398,#c99b5a);box-shadow:0 2px 7px #0005}
 @media(max-width:365px){.entry__base-mode button{font-size:10px;}}
+
+.entry__story h1 { text-transform:uppercase; font-size:clamp(48px,7vw,106px);line-height:.96;letter-spacing:-.055em;text-shadow:0 5px 0 rgba(13,19,12,.8),0 14px 24px #0b150baa; }
+.entry__story h1 em {color:#dfad65;font-style:normal;letter-spacing:.015em;}
+.entry__panel {gap:15px}
+@media(max-width:950px){ .entry__story h1{font-size:clamp(40px,10vw,72px);margin:12px 0 2px;} .entry__card-scene{height:114px;} }
+@media(max-width:560px){ .entry__story h1{font-size:clamp(35px,11vw,54px);margin:5px 0;} .entry__card-scene{height:64px;} .entry__panel{gap:12px} }
 </style>
