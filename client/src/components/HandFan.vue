@@ -15,6 +15,7 @@ const dragging = ref(false);
 const snapping = ref(false);
 const overTarget = ref(false);
 const inFlight = ref(false);
+const recentMoves: Array<{x:number;y:number;t:number}> = [];
 let releaseTimer: ReturnType<typeof setTimeout> | undefined;
 let resize: ResizeObserver | undefined;
 const width = ref(360);
@@ -52,6 +53,8 @@ function pointerDown(e: PointerEvent) {
   startX.value = e.clientX;
   startY.value = e.clientY;
   pos.value = { x: e.clientX, y: e.clientY };
+  recentMoves.length = 0;
+  recentMoves.push({x:e.clientX,y:e.clientY,t:performance.now()});
   index.value = closest(e.clientX);
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   emit('select');
@@ -60,6 +63,9 @@ function pointerDown(e: PointerEvent) {
 function pointerMove(e: PointerEvent) {
   if (e.pointerId !== pointerId.value) return;
   pos.value = { x: e.clientX, y: e.clientY };
+  const now = performance.now();
+  recentMoves.push({x:e.clientX,y:e.clientY,t:now});
+  while (recentMoves.length > 2 && recentMoves[0]!.t < now - 110) recentMoves.shift();
   if (!dragging.value) {
     // Scrubbing horizontally only highlights; an intentional upward pull starts the drag.
     if (startY.value - e.clientY > 30) dragging.value = true;
@@ -74,7 +80,17 @@ function pointerMove(e: PointerEvent) {
 function endPointer(e: PointerEvent) {
   if (pointerId.value !== e.pointerId) return;
   const recipient = props.allowSeatDrop ? seatAt(e.clientX, e.clientY) : null;
-  const accepted = dragging.value && !props.disabled && (props.allowSeatDrop ? Boolean(recipient) : hitTarget(e.clientX, e.clientY)) && selected.value;
+  const oldest = recentMoves[0];
+  const dt = oldest ? Math.max(1, performance.now() - oldest.t) : 999;
+  const velocityY = oldest ? (e.clientY - oldest.y) / dt : 0;
+  const velocityX = oldest ? (e.clientX - oldest.x) / dt : 0;
+  // A fast upward release is a throw; never auto-target penalty cards.
+  const flick = !props.allowSeatDrop && dragging.value && velocityY < -0.85
+    && Math.abs(velocityY) > Math.abs(velocityX) * 0.8
+    && e.clientY < startY.value - 45;
+  const accepted = dragging.value && !props.disabled
+    && (props.allowSeatDrop ? Boolean(recipient) : hitTarget(e.clientX, e.clientY) || flick)
+    && selected.value;
   const simpleTap = !dragging.value && props.allowSeatDrop && selected.value;
   pointerId.value = null;
   overTarget.value = false;
@@ -115,6 +131,7 @@ function reset() {
   emit('hover', false);
   inFlight.value = false;
   index.value = -1;
+  recentMoves.length = 0;
 }
 function cancelPointer(e: PointerEvent) {
   if (pointerId.value === e.pointerId) reset();
