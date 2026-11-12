@@ -468,146 +468,139 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
         </div>
       </main>
 
-      <main v-else class="game-layout">
-        <div class="game-status">
-          <div class="game-status__phase"><span class="phase-symbol">✦</span><span>{{ phaseLabel }}</span></div>
-          <p>{{ guidance }}</p>
-          <span v-if="isMyTurn && state.phase !== 'ENDED'" class="your-turn">ВАШ ХОД</span>
-          <span v-else-if="turnPlayer && state.phase !== 'ENDED'" class="whose-turn">Ход: {{ turnPlayer.name }}</span>
+      
+      <main v-else class="game-room" :class="'game-room--' + state.phase.toLowerCase()">
+        <div class="game-room__status" role="status">
+          <span class="game-room__stage">{{ phaseLabel }}</span>
+          <span class="game-room__turn" :class="{ 'game-room__turn--mine': isMyTurn }">
+            <span class="game-room__turn-light"></span>
+            {{ isMyTurn ? 'ТВОЙ ХОД' : turnPlayer?.name ? 'ХОД · ' + turnPlayer.name : 'ОЖИДАНИЕ' }}
+          </span>
         </div>
-        <div v-if="state.phase === 'PENALTY_REVIEW'" class="review-bar">
-          <div>
-            <strong>Разбор нарушений</strong>
-            <p>Последние 15 секунд для обвинений. За неподтверждённое обвинение штраф получает обвинитель. После отсчёта разбор закончится автоматически.</p>
-            <small>Готовы: {{ state.players.filter(p => p.isReady || p.isBot).length }} / {{ state.players.length }}</small>
-          </div>
-          <button type="button" :disabled="!!me?.isReady" @click="readyReview">{{ me?.isReady ? 'ОЖИДАЕМ ОСТАЛЬНЫХ…' : 'ЗАКОНЧИТЬ РАЗБОР' }}</button>
+        <div v-if="state.phase === 'PENALTY_REVIEW'" class="game-room__review">
+          <strong>Проверка нарушений</strong>
+          <span>{{ state.players.filter(p => p.isReady || p.isBot).length }}/{{ state.players.length }}</span>
+          <button type="button" :disabled="!!me?.isReady" @click="readyReview">{{ me?.isReady ? 'ГОТОВО' : 'ЗАКОНЧИТЬ' }}</button>
         </div>
-        <div class="table-surface" :class="{ 'table-surface--my-turn': isMyTurn && state.phase !== 'ENDED' }">
-          <div class="table-surface__ring" aria-hidden="true"></div>
-          <div class="opponents" :class="'opponents--' + others.length">
+        <div class="game-board" :class="{ 'game-board--my-turn': isMyTurn, 'game-board--dragging': !!dragging }">
+          <div class="game-board__rim" aria-hidden="true"></div>
+          <div class="game-board__top-seats" :class="'game-board__top-seats--' + Math.min(3,others.length)">
             <PlayerSeat
-              v-for="p in others" :key="p.id"
-              :player="p" :is-me="false"
-              :phase="state.phase"
-              :is-turn="turnPlayer?.id === p.id"
-              :recommended="isRecommendedTarget(p.id)"
-              :targetable="(!!dragging || (penaltyTargeting && penaltyTargets.some(target => target.id === p.id))) && !p.hasExited"
+              v-for="p in others.slice(0,3)" :key="p.id"
+              :player="p" :is-me="false" :phase="state.phase"
+              :underlaid-cards="state.underlaidCards !== false"
+              :is-turn="turnPlayer?.id === p.id" :recommended="isRecommendedTarget(p.id)"
+              :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
+                (penaltyTargeting && penaltyTargets.some(t => t.id === p.id))) && !p.hasExited"
               @click="handleSeatClick(p.id)" @card-click="handleCardClick"
             />
           </div>
-
-          <div class="table-center">
-            <div class="table-center__label">PIDOR ONLINE</div>
-            <!-- Authoritative public draw event: the SAME card flips face-up
-                 on EVERY connected screen, even when already on a pile. -->
-            <Transition name="draw-reveal" mode="out-in">
-              <div v-if="gameStore.drawReveal" :key="gameStore.drawReveal.id"
-                class="draw-reveal" role="status" aria-live="polite"
-                :aria-label="(state.players.find(p => p.id === gameStore.drawReveal?.playerId)?.name || 'Игрок') + ' вытянул открытую карту'">
-                <div class="draw-reveal__scene">
-                  <div class="draw-reveal__rotator">
-                    <div class="draw-reveal__face draw-reveal__face--back"><CardComponent hidden /></div>
-                    <div class="draw-reveal__face draw-reveal__face--front"><CardComponent :card="gameStore.drawReveal.card" /></div>
-                  </div>
-                </div>
-                <div class="draw-reveal__caption">{{ state.players.find(p => p.id === gameStore.drawReveal?.playerId)?.name || 'Игрок' }} тянет карту</div>
-              </div>
-            </Transition>
-            <div class="table-center__cards">
-              <div class="table-center__slot table-center__slot--deck">
-                <span class="slot-heading">КОЛОДА</span>
-                <button
-                  type="button" class="deck-button" :class="{ 'deck-button--available': canDraw, 'deck-button--risky': canDraw && riskyDraw }"
-                  :disabled="!canDraw" aria-label="Вытянуть карту из колоды"
-                  title="Вытянуть карту"
-                  @pointerdown.prevent="beginDrag($event, 'deck')"
-                >
+          <div class="game-board__middle">
+            <div class="game-board__side game-board__side--left">
+              <PlayerSeat v-if="others[3]" :key="others[3].id" :player="others[3]" :is-me="false"
+                :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
+                :is-turn="turnPlayer?.id === others[3].id" :recommended="isRecommendedTarget(others[3].id)"
+                :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
+                  (penaltyTargeting && penaltyTargets.some(t => t.id === others[3].id))) && !others[3].hasExited"
+                @click="handleSeatClick(others[3].id)" @card-click="handleCardClick"
+              />
+            </div>
+            <div class="game-board__center">
+              <div class="game-board__deck-zone">
+                <span class="game-board__small-label">КОЛОДА</span>
+                <button type="button" class="game-board__deck" :class="{ 'game-board__deck--ready': canDraw }"
+                  :disabled="!canDraw" title="Взять карту" aria-label="Взять карту и открыть всем игрокам"
+                  @pointerdown.prevent="beginDrag($event, 'deck')">
                   <CardComponent v-if="state.deck.length" hidden />
-                  <div v-else class="empty-slot">0</div>
+                  <span v-else class="game-board__deck-empty">—</span>
                 </button>
-                <span class="slot-count">{{ state.deck.length }} карт</span>
-                <span v-if="canDraw" class="deck-swipe-hint">ПЕРЕТАЩИ КАРТУ</span>
+                <span class="game-board__deck-count">{{ state.deck.length }}</span>
               </div>
-
-              <div class="table-center__slot table-center__slot--trick">
-                <span class="slot-heading">СТОЛ</span>
-                <div class="trick-stack">
-                  <div v-if="!state.currentTrick.length" class="empty-slot empty-slot--trick"><span>✧</span></div>
-                  <CardComponent
-                    v-for="(card, i) in state.currentTrick" :key="card.id"
-                    :card="card" class="trick-card"
-                    :style="{ transform: 'translateX(' + (i - (state.currentTrick.length - 1) / 2) * 12 + 'px) rotate(' + (i % 2 ? 6 : -5) + 'deg)' }"
-                  />
-                  <div v-if="state.activeCard" :key="state.activeCard.card.id" class="active-card" :class="{ 'active-card--hidden': state.activeCard.card.id.startsWith('masked-'), 'active-card--drawn': state.activeCard.fromDeck }">
-                    <CardComponent :card="state.activeCard.card" :hidden="state.activeCard.card.id.startsWith('masked-')" />
-                  </div>
+              <div class="game-board__action-zone">
+                <span class="game-board__small-label">{{ state.phase === 'MAIN_GAME' ? 'РОЗЫГРЫШ' : 'ОТКРЫТАЯ КАРТА' }}</span>
+                <div class="game-board__action-stack">
+                  <CardComponent v-for="(card,i) in state.currentTrick.slice(-3)" :key="card.id"
+                    :card="card" class="game-board__trick-card"
+                    :style="{ '--card-index': i }" />
+                  <button v-if="state.activeCard" type="button"
+                    class="game-board__active-card"
+                    :class="{ 'game-board__active-card--mine': state.activeCard.ownerId === gameStore.playerId }"
+                    :disabled="state.activeCard.ownerId !== gameStore.playerId"
+                    aria-label="Перенести открытую карту на игрока"
+                    @pointerdown.prevent="beginDrag($event, 'active')">
+                    <CardComponent :card="state.activeCard.card" />
+                  </button>
+                  <span v-if="!state.activeCard && !state.currentTrick.length" class="game-board__action-empty">✦</span>
                 </div>
-                <span class="slot-count">{{ state.currentTrick.length ? state.currentTrick.length + ' в розыгрыше' : 'Место для карт' }}</span>
-              </div>
-
-              <div class="table-center__slot table-center__slot--discard">
-                <span class="slot-heading">ОТБОЙ</span>
-                <div class="discard-stack">
-                  <CardComponent v-if="state.discardPile.length" hidden />
-                  <div v-else class="empty-slot">✕</div>
-                </div>
-                <span class="slot-count">{{ state.discardPile.length }} карт</span>
-              </div>
-
-              <div class="table-center__slot table-center__slot--trump">
-                <span class="slot-heading">КОЗЫРЬ</span>
-                <div class="trump-display" :class="{ 'trump-display--red': trumpIsRed }">
-                  <span class="trump-display__star">✦</span>
-                  <strong>{{ state.trumpSuit ? trumpSymbol : state.phase === 'DEALING' ? '?' : '—' }}</strong>
-                  <span class="trump-display__star">✦</span>
-                </div>
-                <span class="slot-count">{{ state.phase === 'DEALING' ? 'Последняя карта' : state.trumpSuit ? 'Масть в игре' : 'Без козыря' }}</span>
               </div>
             </div>
-
-            <div v-if="penaltyTargeting" class="target-actions">
-              <span>КОМУ ПЕРЕДАТЬ КАРТУ?</span>
-              <div class="target-actions__buttons">
-                <button v-for="p in penaltyTargets" :key="p.id" type="button" @click="handleSeatClick(p.id)">{{ p.name }} · {{ state.pendingPenaltyDebts?.[p.id]?.[gameStore.playerId] }}</button>
-                <button type="button" @click="selectedCard = null">ОТМЕНА</button>
-              </div>
+            <div class="game-board__side game-board__side--right">
+              <PlayerSeat v-if="others[4]" :key="others[4].id" :player="others[4]" :is-me="false"
+                :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
+                :is-turn="turnPlayer?.id === others[4].id" :recommended="isRecommendedTarget(others[4].id)"
+                :targetable="(!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId) ||
+                  (penaltyTargeting && penaltyTargets.some(t => t.id === others[4].id))) && !others[4].hasExited"
+                @click="handleSeatClick(others[4].id)" @card-click="handleCardClick"
+              />
             </div>
           </div>
-        </div>
-
-        <div v-if="dragging" class="drag-ghost" :style="{left:dragging.x+'px',top:dragging.y+'px'}" aria-hidden="true">
-          <CardComponent :card="dragging.card || undefined" :hidden="dragging.kind === 'deck'" />
-        </div>
-        <section class="player-dock" :class="{ 'player-dock--dealing': state.phase === 'DEALING' }">
-          <div class="player-dock__actions">
-            <div class="trump">
-              <div><small>КОЗЫРЬ</small><strong :class="{ 'trump--red': trumpIsRed }">{{ trumpSymbol }}</strong></div>
-              <span>{{ state.phase === 'DEALING' ? 'По последней карте' : state.trumpSuit ? 'В игре' : 'БЕЗ КОЗЫРЯ' }}</span>
+          <div class="game-board__footer">
+            <div class="game-board__compact-stat">
+              <span>ОТБОЙ</span><b>{{ state.discardPile.length }}</b>
             </div>
-            <div class="player-dock__buttons">
-              <span v-if="canDraw && state.phase === 'DEALING'" class="action-hint">Перенеси карту из центральной колоды на игрока</span>
-              <button v-if="isMyTurn && state.currentTrick.length && state.phase === 'MAIN_GAME'" type="button" class="action-button action-button--gold" @click="gameStore.takeTrick()">ЗАБРАТЬ НИЖНЮЮ</button>
-              <button v-if="canTakeStumps" type="button" class="action-button action-button--gold" @click="gameStore.takeStumps()">БЕРУ ПОХУЁВЫЕ!</button>
-              <button v-if="canExitGame" type="button" class="action-button action-button--gold" @click="gameStore.exitGame()">С ПИДОРАМИ НЕ ИГРАЮ!</button>
-              <span v-if="state.phase === 'MAIN_GAME' && !isMyTurn && !canTakeStumps && !canExitGame" class="action-hint">Дожидаемся хода</span>
-              <span v-else-if="state.phase === 'PENALTY_DISTRIBUTION' && !selectedCard" class="action-hint">Выбери карту для передачи</span>
+            <div class="game-board__signature" aria-hidden="true">P</div>
+            <div class="game-board__compact-stat">
+              <span>КОЗЫРЬ</span><b :class="{ 'game-board__red': trumpIsRed }">{{ state.trumpSuit ? trumpSymbol : state.phase === 'DEALING' ? '—' : '∅' }}</b>
+            </div>
+          </div>
+          <Transition name="draw-reveal">
+            <div v-if="gameStore.drawReveal" :key="gameStore.drawReveal.id"
+              class="game-board__reveal" role="status" aria-live="polite">
+              <div class="game-board__reveal-stage">
+                <div class="game-board__flip-card">
+                  <div class="game-board__flip-side game-board__flip-side--back"><CardComponent hidden /></div>
+                  <div class="game-board__flip-side game-board__flip-side--front"><CardComponent :card="gameStore.drawReveal.card" /></div>
+                </div>
+              </div>
+              <span class="game-board__reveal-name">{{ state.players.find(p => p.id === gameStore.drawReveal?.playerId)?.name || 'Игрок' }}</span>
+            </div>
+          </Transition>
+        </div>
 
+        <div v-if="dragging" class="game-board__drag-card" :style="{left:dragging.x+'px',top:dragging.y+'px'}" aria-hidden="true">
+          <CardComponent :card="dragging.card || undefined" :hidden="!dragging.card" />
+        </div>
+
+        <section class="game-hand" :class="{ 'game-hand--dealing': state.phase === 'DEALING' }">
+          <div class="game-hand__controls">
+            <span class="game-hand__instruction">
+              {{ state.phase === 'DEALING' ? (state.activeCard?.ownerId === gameStore.playerId ? 'ПЕРЕНЕСИ ОТКРЫТУЮ КАРТУ НА ИГРОКА' : 'ПЕРЕТАЩИ КАРТУ К ИГРОКУ') :
+                 state.phase === 'MAIN_GAME' ? 'ТВОИ КАРТЫ' : phaseLabel }}
+            </span>
+            <div class="game-hand__buttons">
+              <button v-if="isMyTurn && state.currentTrick.length && state.phase === 'MAIN_GAME'" type="button" @click="gameStore.takeTrick()">ЗАБРАТЬ</button>
+              <button v-if="canTakeStumps" type="button" @click="gameStore.takeStumps()">ВЗЯТЬ ПОХУЁВЫЕ</button>
+              <button v-if="canExitGame" type="button" @click="gameStore.exitGame()">ВЫЙТИ ИЗ ИГРЫ</button>
             </div>
           </div>
           <PlayerSeat v-if="me" :player="me" :is-me="true" :is-turn="isMyTurn"
-            :phase="state.phase" :underlaid-cards="state.underlaidCards !== false" :selected-card-id="selectedCard?.id"
-            :targetable="!!dragging" :recommended="isRecommendedTarget(gameStore.playerId)" @drag-start="beginDrag($event, 'pile')"
+            :phase="state.phase" :underlaid-cards="state.underlaidCards !== false"
+            :selected-card-id="selectedCard?.id" :recommended="isRecommendedTarget(gameStore.playerId)"
+            :targetable="!!dragging || (state.phase === 'DEALING' && state.activeCard?.ownerId === gameStore.playerId)"
+            @click="handleSeatClick(gameStore.playerId)" @drag-start="beginDrag($event, 'pile')"
             @card-click="handleCardClick" />
         </section>
 
+        <div v-if="penaltyTargeting" class="game-room__penalty-choice">
+          <span>КОМУ ОТДАТЬ КАРТУ?</span>
+          <button v-for="p in penaltyTargets" :key="p.id" type="button" @click="handleSeatClick(p.id)">{{ p.name }}</button>
+          <button type="button" @click="selectedCard = null">ОТМЕНА</button>
+        </div>
         <div v-if="state.phase === 'ENDED'" class="game-ended">
           <div class="game-ended__panel">
-            <div class="eyebrow">ПАРТИЯ ЗАВЕРШЕНА</div>
-            <div class="game-ended__icon">♠</div>
-            <h2>Вахта принята.</h2>
-            <p><b>{{ loser?.name || 'Игрок' }}</b> остаётся на вахте. Ещё одну?</p>
-            <button class="main-button" type="button" @click="newGame">{{ state.mode === 'bot' ? 'РЕВАНШ С БОТОМ' : 'НОВАЯ КОМНАТА' }} <span>↗</span></button>
+            <span>ПАРТИЯ ЗАВЕРШЕНА</span>
+            <h2>{{ loser?.name || 'Игрок' }} остаётся на вахте</h2>
+            <button class="main-button" type="button" @click="newGame">{{ state.mode === 'bot' ? 'РЕВАНШ' : 'НОВАЯ КОМНАТА' }}</button>
           </div>
         </div>
       </main>
