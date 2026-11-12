@@ -496,7 +496,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
         <div v-if="dragging" class="drag-ghost" :style="{left:dragging.x+'px',top:dragging.y+'px'}" aria-hidden="true">
           <CardComponent :card="dragging.card || undefined" :hidden="dragging.kind === 'deck'" />
         </div>
-        <section class="player-dock">
+        <section class="player-dock" :class="{ 'player-dock--dealing': state.phase === 'DEALING' }">
           <div class="player-dock__actions">
             <div class="trump">
               <div><small>КОЗЫРЬ</small><strong :class="{ 'trump--red': trumpIsRed }">{{ trumpSymbol }}</strong></div>
@@ -1436,6 +1436,68 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
 }
 @media(prefers-reduced-motion:reduce){
  .deck-button--available,.action-button,.main-button{transition:none!important;animation:none!important;}
+}
+
+
+/* Mini portrait phones: make all five opponents visible around the common
+   deck, with the local draw pile occupying a reachable lower strip. */
+@media(max-width:365px) and (orientation:portrait) {
+  .site-header--game {
+    height:auto!important;min-height:42px!important;
+    padding:4px 5px!important;gap:3px!important;
+  }
+  .site-header--game .brand {font-size:16px;letter-spacing:0;}
+  .site-header--game .brand__dot {display:none;}
+  .site-header--game .header-actions {gap:3px;}
+  .site-header--game .lobby-return,.site-header--game .sound-icon {min-height:28px;min-width:26px;padding:3px;}
+  .site-header--game .callout-button {font-size:8px;min-height:28px;}
+  .game-layout {gap:3px;padding:3px 0 10px;overflow:visible;}
+  .game-status {min-height:29px;padding:4px 7px;}
+  .game-status__phase,.your-turn,.whose-turn {font-size:9px;}
+  .your-turn,.whose-turn {padding:3px 7px;}
+  .table-surface {
+    min-height:323px!important;
+    flex:0 0 auto;
+    border-width:5px;border-radius:19px;
+    overflow:hidden;
+  }
+  .table-surface::before{inset:4px;border-radius:14px;}
+  .table-surface__ring{inset:9px;border-radius:10px;}
+  .table-surface > .opponents > .seat {
+    width:77px!important;max-width:26%;min-height:0;
+  }
+  .table-surface > .opponents > .seat:nth-child(1){top:10px;left:17%;}
+  .table-surface > .opponents > .seat:nth-child(2){top:10px;left:50%;}
+  .table-surface > .opponents > .seat:nth-child(3){top:10px;left:83%;}
+  .table-surface > .opponents > .seat:nth-child(4){top:54%;left:15%;}
+  .table-surface > .opponents > .seat:nth-child(5){top:54%;left:85%;}
+  .table-center {min-height:313px;padding:101px 12% 9px;}
+  .table-center__label {top:91px;font-size:8px;letter-spacing:.14em;}
+  .table-center__cards {
+    width:100%;max-width:210px;
+    grid-template-columns:40px minmax(54px,1fr) 40px;
+    grid-template-rows:68px 64px;
+    gap:3px;
+  }
+  .table-center__slot--deck :deep(.playing-card){--width:54px;}
+  .table-center__slot--discard :deep(.playing-card){--width:35px;}
+  .table-center__slot--trick {min-height:58px;padding:3px 0;border-radius:11px;}
+  .table-center__slot--trump {min-height:101px;padding:3px 0;}
+  .trump-display strong {font-size:30px;}
+  .table-center__slot--trick .empty-slot,.table-center__slot--discard .empty-slot {width:33px;}
+  .slot-heading {font-size:7px;}
+  .slot-count {font-size:7px;}
+  .deck-swipe-hint{font-size:7px;}
+  .player-dock {padding:3px 4px;min-height:0;border-radius:12px;}
+  .player-dock--dealing .player-dock__actions {display:none;}
+  .player-dock--dealing :deep(.seat__hand-heading){display:none;}
+  .player-dock--dealing :deep(.seat__deal-area){min-height:90px;padding:2px 4px;}
+  .player-dock--dealing :deep(.seat__stack){width:61px;height:88px;}
+  .player-dock--dealing :deep(.seat__stack-layer .playing-card){--width:54px!important;}
+  .player-dock--dealing :deep(.seat__identity){margin:2px 0 4px;}
+  .player-dock--dealing :deep(.seat--me){padding:2px;}
+  .player-dock__buttons .action-button {min-height:35px;}
+  .player-dock:not(.player-dock--dealing) {max-height:none;overflow:visible;}
 }
 
 </style>
