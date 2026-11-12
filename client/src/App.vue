@@ -30,7 +30,7 @@ const copied = ref(false);
 const showRules = ref(false);
 const accuseOpen = ref(false);
 const latestDraw = ref<{ playerId: string; outOfTurn: boolean; forcedSelf: boolean; createdAt: number } | null>(null);
-const dragging = ref<{kind:'deck'|'pile';pointerId:number;x:number;y:number;card:Card|null}|null>(null);
+const dragging = ref<{kind:'deck'|'pile';pointerId:number;x:number;y:number;startX:number;startY:number;card:Card|null}|null>(null);
 const dragTarget = ref<string|null>(null);
 const playMode = ref<'friends' | 'bot'>(new URLSearchParams(window.location.search).get('mode') === 'bot' ? 'bot' : 'friends');
 
@@ -186,7 +186,8 @@ function beginDrag(event: PointerEvent, kind: 'deck' | 'pile') {
   if (kind === 'pile' && (!isMyTurn.value || !me.value || me.value.stumps.length < 2)) return;
   event.preventDefault();
   dragging.value = {kind, pointerId:event.pointerId, x:event.clientX,
-    y:event.clientY, card:kind === 'pile' ? me.value!.stumps[me.value!.stumps.length - 1]! : null};
+    y:event.clientY, startX:event.clientX, startY:event.clientY,
+    card:kind === 'pile' ? me.value!.stumps[me.value!.stumps.length - 1]! : null};
   haptic();
 }
 function handleDragMove(event: PointerEvent) {
@@ -200,7 +201,9 @@ function finishDrag(event: PointerEvent) {
   const move = dragging.value;
   const target = document.elementFromPoint(event.clientX,event.clientY)
     ?.closest('[data-player-id]')?.getAttribute('data-player-id');
+  const travel = Math.hypot(event.clientX-move.startX,event.clientY-move.startY);
   dragging.value = null;
+  if (travel < 28) { dragTarget.value = null; return; }
   dragTarget.value = null;
   if (!target || !state.value?.players.some(p => p.id === target)) return;
   if (move.kind === 'deck') gameStore.drawTo(target);
