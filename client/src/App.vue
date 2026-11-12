@@ -717,7 +717,7 @@ onBeforeUnmount(() => {
           <div class="table__discard-num">{{ state.discardPile.length }}</div>
         </div>
 
-        <div data-drop-zone="trick" class="table__play-target" :class="{ 'table__play-target--enabled': canPlay, 'table__play-target--dragover': fanHover }"></div>
+        <div data-drop-zone="trick" class="table__play-target" :class="{ 'table__play-target--enabled': canPlay, 'table__play-target--dragover': fanHover }"><span v-if="canPlay || fanHover" class="table__play-target-label">{{ fanHover ? 'ОТПУСТИ КАРТУ' : 'СЫГРАТЬ КАРТУ' }}</span></div>
         <div class="table__trick" :style="state.phase === 'MAIN_GAME' ? trickPosition : {}">
           <div v-for="(card,i) in state.currentTrick.filter(card => !hiddenTrickIds.has(card.id))" :key="card.id" :style="{ '--trick-rot': (i * 6 - 4) + 'deg', '--trick-x': (i * 8) + 'px', '--trick-y': (i * -4) + 'px' }">
             <CardComponent :card="card" small />
