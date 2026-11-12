@@ -1,0 +1,86 @@
+import type { Card, GameState } from '../shared/types.js';
+import { PidorGame, RANK_VALUE } from './gameLogic.ts';
+
+export type BotMove =
+  | { type: 'accuse'; actorId: string; accusedId: string }
+  | { type: 'drawCardFromDeck'; actorId: string }
+  | { type: 'takeFromPile'; actorId: string; cardId: string }
+  | { type: 'placeActiveCard'; actorId: string; targetId: string }
+  | { type: 'givePenaltyCard'; actorId: string; cardId: string; receiverId: string }
+  | { type: 'playCard'; actorId: string; cardId: string }
+  | { type: 'takeTrick' | 'takeStumps' | 'exitGame'; actorId: string };
+
+function cardCost(card: Card, trump: GameState['trumpSuit']): number {
+  // Keep trumps and high spades for later when possible.
+  return RANK_VALUE[card.rank] + (card.suit === trump ? 30 : 0) +
+    (card.suit === 'spades' ? 5 : 0);
+}
+
+function firstTarget(game: PidorGame, actorId: string, card: Card): string {
+  const players = game.state.players;
+  const actorIdx = players.findIndex(player => player.id === actorId);
+  for (let i = 1; i < players.length; i++) {
+    const target = players[(actorIdx + i) % players.length];
+    const top = target.stumps.at(-1);
+    if (top && game.canBeat(card, top)) return target.id;
+  }
+  return actorId;
+}
+
+/**
+ * Deterministic, conservative opponent. It makes legal moves only, and returns
+ * null whenever the human player must act.
+ */
+export function nextBotMove(game: PidorGame, botIds: readonly string[]): BotMove | null {
+  const state = game.state;
+  const isBot = (id: string) => botIds.includes(id);
+  if (state.phase === 'LOBBY' || state.phase === 'ENDED') return null;
+
+  // Bots explicitly call out public rule mistakes as fellow players.
+  // They are not awarded by the engine merely because a mistake happened.
+  const challenger = state.players.find(p => isBot(p.id) && !p.hasExited && game.canAccuseNow(p.id) &&
+    game.accusableTargets(p.id).length > 0);
+  if (challenger && Math.random() < 0.55) {
+    const opponentId = game.accusableTargets(challenger.id)[0];
+    return { type: 'accuse', actorId: challenger.id, accusedId: opponentId };
+  }
+  if (state.phase === 'PENALTY_REVIEW') return null;
+
+  if (state.phase === 'DEALING') {
+    const actor = state.players[state.turnIndex];
+    if (!actor || !isBot(actor.id)) return null;
+    if (state.activeCard) {
+      if (state.activeCard.ownerId !== actor.id) return null;
+      return {
+        type: 'placeActiveCard', actorId: actor.id,
+        targetId: state.activeCard.fromDeck && state.deck.length === 0
+          ? actor.id : firstTarget(game, actor.id, state.activeCard.card)
+      };
+    }
+    const top = actor.stumps.at(-1);
+    if (top && game.canMoveTopCard(actor.id) && firstTarget(game, actor.id, top) !== actor.id) {
+      return { type: 'takeFromPile', actorId: actor.id, cardId: top.id };
+    }
+    return state.deck.length ? { type: 'drawCardFromDeck', actorId: actor.id } : null;
+  }
+
+  if (state.phase === 'PENALTY_DISTRIBUTION') {
+    const turn = game.currentPenaltyTurn();
+    if (!turn || !isBot(turn.giverId)) return null;
+    const giver = state.players.find(p => p.id === turn.giverId);
+    if (!giver || giver.hand.length < 2) return null;
+    const card = [...giver.hand].sort((a, b) =>
+      cardCost(b, state.trumpSuit) - cardCost(a, state.trumpSuit))[0];
+    return card ? { type: 'givePenaltyCard', actorId: giver.id, cardId: card.id, receiverId: turn.receiverId } : null;
+  }
+
+  // Players must take their face-down cards (or leave) only between tricks.
+  if (state.currentTrick.length === 0) {
+    for (const player of state.players) {
+      if (!isBot(player.id) || player.hasExited || player.hand.length > 0) continue;
+      return { type: player.stumps.length ? 'takeStumps' : 'exitGame', actorId: player.id };
+    }
+  }
+
+  const actor = state.players[state.turnIndex];
+  if (! --- TRUNCATED --- 6,118 chars
