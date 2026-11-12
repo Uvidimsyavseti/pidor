@@ -30,6 +30,7 @@ export function requestTelegramFullscreen(): void {
 export function mountTelegramViewport(): () => void {
   const tg = window.Telegram?.WebApp;
   const root = document.documentElement;
+  if (tg) root.classList.add('telegram-mini-app');
   let raf = 0;
   let height = 0;
 
@@ -38,7 +39,9 @@ export function mountTelegramViewport(): () => void {
     raf = requestAnimationFrame(() => {
       const safe = tg?.safeAreaInset || {};
       const content = tg?.contentSafeAreaInset || {};
-      root.style.setProperty('--tg-safe-top', px(Math.max(safe.top || 0, content.top || 0)));
+      // Telegram's Close / More overlay is not included in safeAreaInset on some iOS clients.
+      // Reserve a conservative top strip even when Telegram reports zero insets.
+      root.style.setProperty('--tg-safe-top', px(Math.max(safe.top || 0, content.top || 0, tg ? 96 : 0)));
       root.style.setProperty('--tg-safe-bottom', px(Math.max(safe.bottom || 0, content.bottom || 0)));
       root.style.setProperty('--tg-safe-left', px(Math.max(safe.left || 0, content.left || 0)));
       root.style.setProperty('--tg-safe-right', px(Math.max(safe.right || 0, content.right || 0)));
@@ -61,6 +64,7 @@ export function mountTelegramViewport(): () => void {
   tg?.onEvent?.('fullscreenChanged', sync);
   return () => {
     cancelAnimationFrame(raf);
+    root.classList.remove('telegram-mini-app');
     window.removeEventListener('resize', sync);
     window.visualViewport?.removeEventListener('resize', sync);
     tg?.offEvent?.('viewportChanged', sync);
