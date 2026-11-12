@@ -49,7 +49,7 @@ type DragSession = {
 };
 type FlyingCard = {
   card:Card|null;fromX:number;fromY:number;dx:number;dy:number;
-  duration:number;angle:number;deckBefore:number;kind:'drop'|'flick';
+  duration:number;angle:number;deckBefore:number;kind:'drop'|'flick';source:'deck'|'pile'|'active';
 };
 const dragging = ref<DragSession|null>(null);
 const flying = ref<FlyingCard|null>(null);
@@ -273,11 +273,10 @@ watch(() => gameStore.drawReveal?.id, () => {
   if (!reveal || reveal.playerId !== gameStore.playerId) return;
   // The actual card received from the server turns face-up in the moving
   // card's own 3D container; no separate overlay on the drawer's screen.
-  if (dragging.value?.kind === 'deck' && dragging.value.deckBefore === (state.value?.deck.length || 0)+1) {
+  if (dragging.value?.kind === 'deck' && dragging.value.card === null) {
     dragging.value={...dragging.value,card:reveal.card};
   }
-  if (flying.value && flying.value.card === null &&
-      flying.value.deckBefore === (state.value?.deck.length || 0)+1) {
+  if (flying.value?.source === 'deck' && flying.value.card === null) {
     flying.value={...flying.value,card:reveal.card};
   }
 });
@@ -345,7 +344,7 @@ function animateCardFlight(move: DragSession, seat: ThrowSeat, kind:'drop'|'flic
   flying.value={
     card:move.card,fromX:move.x,fromY:move.y,dx,dy,
     angle:Math.max(-26,Math.min(26,dx*.065)),duration,
-    deckBefore:move.deckBefore,kind
+    deckBefore:move.deckBefore,kind,source:move.kind
   };
   flightTimer=setTimeout(clearFlight,duration+45);
 }
@@ -664,7 +663,10 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
           :style="{
             left:flying.fromX+'px',top:flying.fromY+'px',
             '--flight-dx':flying.dx+'px','--flight-dy':flying.dy+'px',
-            '--flight-angle':flying.angle+'deg','--flight-duration':flying.duration+'ms'
+            '--flight-dx38':(flying.dx*.38)+'px','--flight-dy38':(flying.dy*.38)+'px',
+            '--flight-dx90':(flying.dx*.9)+'px','--flight-dy90':(flying.dy*.9)+'px',
+            '--flight-angle':flying.angle+'deg','--flight-angle55':(flying.angle*.55)+'deg',
+            '--flight-duration':flying.duration+'ms'
           }" aria-hidden="true">
           <div class="gesture-card" :class="{ 'gesture-card--face-up': !!flying.card }">
             <div class="gesture-card__inner">
