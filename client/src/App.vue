@@ -75,6 +75,16 @@ const canDraw = computed(() => currentPhase.value === 'DEALING' && isMyTurn.valu
 const canPlay = computed(() => currentPhase.value === 'MAIN_GAME' && isMyTurn.value && !animationLocked.value && !pending.value);
 const reviewSeconds = computed(() => Math.max(0, Math.ceil(((state.value?.reviewDeadlineAt || clock.value) - clock.value) / 1000)));
 const loser = computed(() => state.value?.players.find(player => player.onDuty) || null);
+const handLabel = computed(() => {
+  const view = state.value;
+  const own = me.value;
+  if (!view || !own) return '';
+  const recipient = view.pendingPenaltyTurn?.receiverId;
+  if (view.phase === 'PENALTY_DISTRIBUTION' && view.pendingPenaltyTurn?.giverId === game.playerId) {
+    return 'Передай карту: ' + (view.players.find(player => player.id === recipient)?.name || 'игроку');
+  }
+  return own.name + ' · ' + own.hand.length + ' карт';
+});
 const active = computed(() => state.value?.activeCard);
 const trumpSymbol: Record<Suit, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
 const isRedTrump = computed(() => state.value?.trumpSuit === 'diamonds' || state.value?.trumpSuit === 'hearts');
@@ -553,11 +563,7 @@ onBeforeUnmount(() => {
           <button v-if="me && !me.hand.length && me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill" @click="game.takeStumps()">Беру пеньки</button>
           <button v-if="me && !me.hand.length && !me.stumps.length && state.phase === 'MAIN_GAME'" class="action-pill action-pill--quiet" @click="game.exitGame()">Выйти</button>
         </div>
-        <div v-if="me" class="hand-area__label">
-          {{ state.phase === 'PENALTY_DISTRIBUTION' && state.pendingPenaltyTurn?.giverId === game.playerId
-            ? 'Передай карту: ' + (state.players.find(p => p.id === state.pendingPenaltyTurn?.receiverId)?.name || '')
-            : me.name + ' · ' + me.hand.length + ' карт' }}
-        </div>
+        <div v-if="me" class="hand-area__label">{{ handLabel }}</div>
         <HandFan v-if="me && ['MAIN_GAME', 'PENALTY_DISTRIBUTION'].includes(state.phase)" :cards="me.hand"
           :disabled="state.phase === 'MAIN_GAME' ? !canPlay : (state.pendingPenaltyTurn?.giverId !== game.playerId || animationLocked || !!pending)"
           :allow-seat-drop="state.phase === 'PENALTY_DISTRIBUTION'"
