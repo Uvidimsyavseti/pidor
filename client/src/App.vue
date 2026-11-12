@@ -104,7 +104,9 @@ function isRecommendedTarget(playerId: string): boolean {
   };
   for (let i = 1; i < players.length; i++) {
     const target = players[(actorIdx + i) % players.length];
-    if (legal(target.stumps.at(-1))) return target.id === playerId;
+    if (!target) continue;
+    const top = target.stumps[target.stumps.length - 1];
+    if (legal(top)) return target.id === playerId;
   }
   return playerId === gameStore.playerId;
 }
