@@ -25,6 +25,7 @@ export interface GameState {
   phase: GamePhase;
   mode?: 'friends' | 'bot';
   hostId?: string;
+  underlaidCards?: boolean; // true: three fixed starting cards, two kept beneath the hand
   players: Player[];
   deck: Card[];
   trumpSuit: Suit | null;
