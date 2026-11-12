@@ -35,7 +35,7 @@ function touchTop(e: Event) {
     @click="emit('click')"
   >
     <div class="seat__identity">
-      <span class="seat__turn" v-if="isTurn" aria-label="Ход игрока">◆</span>
+      <span class="seat__turn" v-if="isTurn" aria-label="Ход игрока">● ХОД</span>
       <span class="seat__name">{{ player.name }}</span>
       <span v-if="player.penalties" class="seat__penalties" :aria-label="'Похуёвых: ' + player.penalties">☠ {{ player.penalties }}</span>
     </div>
