@@ -186,7 +186,7 @@ function beginDrag(event: PointerEvent, kind: 'deck' | 'pile') {
   if (kind === 'pile' && (!isMyTurn.value || !me.value || me.value.stumps.length < 2)) return;
   event.preventDefault();
   dragging.value = {kind, pointerId:event.pointerId, x:event.clientX,
-    y:event.clientY, card:kind === 'pile' ? me.value!.stumps.at(-1)! : null};
+    y:event.clientY, card:kind === 'pile' ? me.value!.stumps[me.value!.stumps.length - 1]! : null};
   haptic();
 }
 function handleDragMove(event: PointerEvent) {
