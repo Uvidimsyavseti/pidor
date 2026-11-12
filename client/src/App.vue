@@ -10,6 +10,17 @@ import type { Card } from '@shared/types';
 interface TelegramWebApp {
   ready?: () => void;
   expand?: () => void;
+  disableVerticalSwipes?: () => void;
+  enableVerticalSwipes?: () => void;
+  requestFullscreen?: () => void;
+  exitFullscreen?: () => void;
+  lockOrientation?: () => void;
+  unlockOrientation?: () => void;
+  isFullscreen?: boolean;
+  initData?: string;
+  platform?: string;
+  contentSafeAreaInset?: { top?:number; right?:number; bottom?:number; left?:number };
+  offEvent?: (event: string, callback: () => void) => void;
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   openTelegramLink?: (url: string) => void;
@@ -22,6 +33,7 @@ interface TelegramWebApp {
   };
 }
 const tg = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
+const isTelegramMiniApp = Boolean(tg?.initData || tg?.initDataUnsafe?.user);
 const gameStore = useGameStore();
 const name = ref('');
 const room = ref(new URLSearchParams(window.location.search).get('room') || '');
@@ -29,22 +41,38 @@ const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
 const accuseOpen = ref(false);
-const dragging = ref<{kind:'deck'|'pile';pointerId:number;x:number;y:number;startX:number;startY:number;card:Card|null}|null>(null);
+const dragging = ref<{kind:'deck'|'pile'|'active';pointerId:number;x:number;y:number;startX:number;startY:number;card:Card|null}|null>(null);
+const deckRequestPending = ref(false);
+const pendingDrawDrop = ref<string|null>(null);
 const dragTarget = ref<string|null>(null);
 const playMode = ref<'friends' | 'bot'>(new URLSearchParams(window.location.search).get('mode') === 'bot' ? 'bot' : 'friends');
 
+function syncTelegramViewport() {
+  if (!isTelegramMiniApp) return;
+  const height = tg?.viewportStableHeight || window.innerHeight;
+  if (height) document.documentElement.style.setProperty('--game-viewport-height', height + 'px');
+  const safe = tg?.contentSafeAreaInset;
+  for (const side of ['top','right','bottom','left'] as const) {
+    document.documentElement.style.setProperty('--game-inset-' + side, (safe?.[side] || 0) + 'px');
+  }
+}
 onMounted(() => {
   tg?.ready?.();
-  tg?.expand?.();
-  tg?.setHeaderColor?.('#0b1718');
-  tg?.setBackgroundColor?.('#0b1718');
-  const syncViewport = () => {
-    if (tg?.viewportStableHeight) {
-      document.documentElement.style.setProperty('--tg-height', tg.viewportStableHeight + 'px');
-    }
-  };
-  syncViewport();
-  tg?.onEvent?.('viewportChanged', syncViewport);
+  if (isTelegramMiniApp) {
+    document.documentElement.classList.add('tg-locked');
+    document.body.classList.add('tg-locked');
+    try { tg?.expand?.(); } catch { /* old Telegram client */ }
+    try { tg?.disableVerticalSwipes?.(); } catch { /* old Telegram client */ }
+    try { tg?.requestFullscreen?.(); } catch { /* old Telegram client */ }
+    try { tg?.lockOrientation?.(); } catch { /* old Telegram client */ }
+    tg?.setHeaderColor?.('#111d18');
+    tg?.setBackgroundColor?.('#111d18');
+    syncTelegramViewport();
+    tg?.onEvent?.('viewportChanged', syncTelegramViewport);
+    tg?.onEvent?.('fullscreenChanged', syncTelegramViewport);
+    tg?.onEvent?.('contentSafeAreaChanged', syncTelegramViewport);
+    window.addEventListener('resize', syncTelegramViewport);
+  }
   if (tg?.initDataUnsafe?.user) {
     name.value = tg.initDataUnsafe.user.first_name || tg.initDataUnsafe.user.username || '';
   }
@@ -52,6 +80,17 @@ onMounted(() => {
     room.value = tg.initDataUnsafe.start_param.slice(5);
   }
 });
+onUnmounted(() => {
+  if (!isTelegramMiniApp) return;
+  tg?.offEvent?.('viewportChanged', syncTelegramViewport);
+  tg?.offEvent?.('fullscreenChanged', syncTelegramViewport);
+  tg?.offEvent?.('contentSafeAreaChanged', syncTelegramViewport);
+  window.removeEventListener('resize', syncTelegramViewport);
+  document.documentElement.classList.remove('tg-locked');
+  document.body.classList.remove('tg-locked');
+  try { tg?.enableVerticalSwipes?.(); tg?.unlockOrientation?.(); } catch { /* legacy Telegram */ }
+});
+
 watch(() => gameStore.gameState?.phase, () => { selectedCard.value = null; });
 watch(() => gameStore.gameState?.pendingPenaltyTurn?.giverId, () => { selectedCard.value = null; });
 
@@ -77,14 +116,14 @@ const trumpSymbol = computed(() => {
 });
 const trumpIsRed = computed(() => ['hearts','diamonds'].includes(state.value?.trumpSuit || ''));
 const canDraw = computed(() => state.value?.phase === 'DEALING'
-  && !!state.value.deck.length && !state.value.activeCard);
+  && !!state.value.deck.length && !state.value.activeCard && !deckRequestPending.value);
 const riskyDraw = computed(() => state.value?.phase === 'DEALING' && !isMyTurn.value);
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 // The user may drop on ANY seat. Only the first eligible target gets a
 // recommended outline; other targets remain interactive for possible cheating.
 function isRecommendedTarget(playerId: string): boolean {
-  if (dragging.value?.kind !== 'pile' || !dragging.value.card || !state.value) return false;
+  if (!state.value || !dragging.value?.card) return false;
   const players = state.value.players;
   const actorIdx = players.findIndex(p => p.id === gameStore.playerId);
   if (actorIdx < 0) return false;
@@ -166,6 +205,11 @@ function handleCardClick({ card, ownerId }: { card: Card; ownerId: string }) {
 }
 function handleSeatClick(playerId: string) {
   haptic();
+  if (state.value?.phase === 'DEALING' && state.value.activeCard?.ownerId === gameStore.playerId) {
+    gameStore.placeActiveCard(playerId);
+    playSound('place');
+    return;
+  }
   if (penaltyTargeting.value && selectedCard.value && penaltyTargets.value.some(p => p.id === playerId)) {
     gameStore.givePenaltyCard(selectedCard.value.id, playerId);
     selectedCard.value = null;
@@ -181,19 +225,53 @@ function readyReview() {
   haptic();
   gameStore.finishReview();
 }
-function beginDrag(event: PointerEvent, kind: 'deck' | 'pile') {
-  if (state.value?.phase !== 'DEALING' || state.value.activeCard) return;
+// A card is actually DRAWN on pointer-down. The server immediately announces
+// its true rank and suit to everyone; we never wait until dropping to reveal.
+watch(() => state.value?.deck.length, () => {
+  if (!deckRequestPending.value) return;
+  deckRequestPending.value = false;
+});
+watch(() => state.value?.activeCard?.card.id, () => {
+  const active = state.value?.activeCard;
+  if (dragging.value?.kind === 'deck' && active?.ownerId === gameStore.playerId) {
+    dragging.value = { ...dragging.value, card: active.card };
+  }
+  if (pendingDrawDrop.value && active?.ownerId === gameStore.playerId && active.fromDeck) {
+    const to = pendingDrawDrop.value;
+    pendingDrawDrop.value = null;
+    gameStore.placeActiveCard(to);
+    playSound('place');
+  }
+});
+watch(() => gameStore.gameState?.phase, phase => {
+  if (phase !== 'DEALING') {
+    pendingDrawDrop.value = null;
+    deckRequestPending.value = false;
+    dragging.value = null;
+  }
+});
+function beginDrag(event: PointerEvent, kind: 'deck' | 'pile' | 'active') {
+  if (state.value?.phase !== 'DEALING') return;
   if (kind === 'deck' && !canDraw.value) return;
-  if (kind === 'pile' && (!isMyTurn.value || !me.value || me.value.stumps.length <= (state.value.underlaidCards === false ? 0 : 3))) return;
+  if (kind === 'pile' && (state.value.activeCard || !isMyTurn.value || !me.value ||
+    me.value.stumps.length <= (state.value.underlaidCards === false ? 0 : 3))) return;
+  if (kind === 'active' && state.value.activeCard?.ownerId !== gameStore.playerId) return;
   event.preventDefault();
-  dragging.value = {kind, pointerId:event.pointerId, x:event.clientX,
-    y:event.clientY, startX:event.clientX, startY:event.clientY,
-    card:kind === 'pile' ? me.value!.stumps[me.value!.stumps.length - 1]! : null};
+  event.stopPropagation();
+  const card = kind === 'active' ? state.value.activeCard!.card
+    : kind === 'pile' ? me.value!.stumps[me.value!.stumps.length - 1]! : null;
+  dragging.value = {kind,pointerId:event.pointerId,x:event.clientX,y:event.clientY,
+    startX:event.clientX,startY:event.clientY,card};
+  if (kind === 'deck') {
+    deckRequestPending.value = true;
+    gameStore.drawCardFromDeck();
+    window.setTimeout(() => { deckRequestPending.value = false; }, 2400);
+  }
   haptic();
 }
 function handleDragMove(event: PointerEvent) {
   if (!dragging.value || dragging.value.pointerId !== event.pointerId) return;
-  dragging.value = {...dragging.value, x:event.clientX, y:event.clientY};
+  dragging.value = {...dragging.value,x:event.clientX,y:event.clientY};
   dragTarget.value = document.elementFromPoint(event.clientX,event.clientY)
     ?.closest('[data-player-id]')?.getAttribute('data-player-id') || null;
 }
@@ -204,16 +282,17 @@ function finishDrag(event: PointerEvent) {
     ?.closest('[data-player-id]')?.getAttribute('data-player-id');
   const travel = Math.hypot(event.clientX-move.startX,event.clientY-move.startY);
   dragging.value = null;
-  if (travel < 28) { dragTarget.value = null; return; }
   dragTarget.value = null;
-  if (!target || !state.value?.players.some(p => p.id === target)) return;
-  if (move.kind === 'deck') gameStore.drawTo(target);
-  else gameStore.moveTopTo(target);
+  if (travel < 24 || !target || !state.value?.players.some(p => p.id === target)) return;
+  if (move.kind === 'pile') gameStore.moveTopTo(target);
+  else if (move.kind === 'active') gameStore.placeActiveCard(target);
+  else if (state.value?.activeCard?.ownerId === gameStore.playerId) gameStore.placeActiveCard(target);
+  else pendingDrawDrop.value = target; // pointer-up may beat the WebSocket response
   playSound('place');
   haptic();
 }
 function cancelDrag() { dragging.value = null; dragTarget.value = null; }
-window.addEventListener('pointermove',handleDragMove);
+window.addEventListener('pointermove',handleDragMove,{passive:true});
 window.addEventListener('pointerup',finishDrag);
 window.addEventListener('pointercancel',cancelDrag);
 onUnmounted(() => {
@@ -221,6 +300,7 @@ onUnmounted(() => {
   window.removeEventListener('pointerup',finishDrag);
   window.removeEventListener('pointercancel',cancelDrag);
 });
+
 async function invite() {
   haptic();
   const id = gameStore.joined ? gameStore.roomId : room.value;
@@ -267,7 +347,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'app-shell--telegram': isTelegramMiniApp, 'app-shell--playing': gameStore.joined && state?.phase !== 'LOBBY' }">
     <div class="ambient ambient--top"></div>
     <div class="ambient ambient--bottom"></div>
 
