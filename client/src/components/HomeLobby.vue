@@ -349,4 +349,117 @@ function switchMode(next: 'friends'|'bot') {
 .entry__panel {gap:15px}
 @media(max-width:950px){ .entry__story h1{font-size:clamp(40px,10vw,72px);margin:12px 0 2px;} .entry__card-scene{height:114px;} }
 @media(max-width:560px){ .entry__story h1{font-size:clamp(35px,11vw,54px);margin:5px 0;} .entry__card-scene{height:64px;} .entry__panel{gap:12px} }
+
+/* ━━━━━━━━━━ PIDOR ONLINE — cleaner club lobby ━━━━━━━━━━ */
+.entry {
+  width:min(1190px,100%);grid-template-columns:minmax(0,1fr) minmax(390px,480px);
+  gap:clamp(28px,5vw,100px);
+  align-items:center;
+  padding:clamp(25px,4vw,68px) 24px;
+}
+.entry__story {display:flex;flex-direction:column;align-items:flex-start;justify-content:center;}
+.entry__story h1 {
+  margin:0;
+  font-family:Georgia,serif; font-weight:800;
+  font-size:clamp(54px,7.8vw,108px);line-height:.97;
+  letter-spacing:-.035em;color:#f2e6d2;
+  text-shadow:0 12px 28px #0007;
+}
+.entry__story h1 em {color:#d3ac76;font-style:normal;}
+.entry__card-scene {width:100%;height:305px;margin:26px 0 0;justify-content:flex-start;align-items:flex-start;}
+.entry__fan{width:min(400px,100%);height:255px;}
+.entry__fan-card{left:calc(50% - 75px);filter:drop-shadow(0 12px 10px #020a068a);}
+.entry__fan-card :deep(.playing-card){--width:135px!important;}
+.entry__fan-card--0{transform:translate(-82px,45px) rotate(-23deg);}
+.entry__fan-card--1{transform:translate(7px,5px) rotate(3deg);}
+.entry__fan-card--2{transform:translate(99px,50px) rotate(23deg);}
+.entry__fan-shadow{bottom:5px;}
+.entry__panel {
+  gap:16px;padding:clamp(20px,2.7vw,34px);
+  background:linear-gradient(155deg,#24352a 0%,#182b21 90%);
+  border:1px solid #9c8060;
+  border-radius:20px;
+  box-shadow:0 20px 55px rgba(0,0,0,.38),inset 0 1px rgba(247,236,203,.06);
+}
+.entry__panel h2{font:700 31px Georgia,serif;color:#f1e3c9;letter-spacing:-.015em;}
+.entry__panel-head{align-items:center;}
+.entry__audio{border:1px solid #7e7358;background:#2b4132;border-radius:10px;color:#e9d7b2;}
+.entry__field > span{color:#b6b8a9;letter-spacing:.09em;}
+.entry__field input,.entry__field select{
+  min-height:49px;background:#14271f;border:1px solid #576551;border-radius:11px;
+  color:#fbecce;font-size:15px;
+}
+.entry__field input::placeholder{color:#8ca092;}
+.entry__mode button {
+  border:1px solid #506751;background:#1c3529;color:#c5d1bf;
+  border-radius:11px;min-height:72px;
+  transition:transform .17s ease,background .18s ease,border-color .18s ease;
+}
+.entry__mode button.active{
+  border:1px solid #d9b37a;background:#344a34;
+  box-shadow:inset 0 0 0 1px rgba(238,200,141,.1);
+}
+.entry__mode button:hover,.entry__tabs button:hover,.entry__table-item:hover{transform:translateY(-2px);}
+.entry__mode button:active,.entry__tabs button:active,.entry__table-item:active{transform:translateY(1px) scale(.99);}
+.entry__mode b{font-size:14px;color:#f8e2bd;}
+.entry__mode small{font-size:11px;color:#b3c4b1;}
+.entry__tabs {background:#15261f;border:1px solid rgba(230,201,157,.14);border-radius:12px;padding:4px;gap:3px;}
+.entry__tabs button {color:#b6c6b6;min-height:40px;font-size:11px;border-radius:9px;transition:transform .17s ease,background .18s;}
+.entry__tabs button.active {background:#d9b881;color:#242419;}
+.entry__tables,.entry__create,.entry__bots{min-height:240px;gap:12px;}
+.entry__table-item{background:#1d392c;border:1px solid #4f6b52;color:#f1dfc0;border-radius:10px;min-height:60px;transition:transform .18s ease,background .18s ease,border-color .18s ease;}
+.entry__table-item:hover{background:#294b39;border-color:#d0ac76;}
+.entry__table-icon{background:#61442b;border-color:#a68253;color:#ebcc9c;}
+.entry__table-info strong{font-size:14px;font-weight:800;}
+.entry__table-info small{font-size:11px;color:#b3cab7;}
+.entry__no-tables {min-height:123px;color:#b8c4b4;gap:7px;}
+.entry__no-tables strong{color:#f1ddbe;font-size:15px;}
+.entry__no-tables-icon{font-size:29px;color:#c6a26d;}
+.entry__primary {
+  background:linear-gradient(160deg,#ebcd99,#d4a970);
+  color:#23241d;font-size:12px;font-weight:900;
+  letter-spacing:.04em;min-height:52px;border:1px solid #f5debb;
+  border-radius:11px;box-shadow:0 3px 12px #0005,inset 0 1px #fff7dda3;
+  transition:transform .18s ease,filter .18s ease,box-shadow .18s ease;
+}
+.entry__primary:hover:not(:disabled){transform:translateY(-3px);filter:brightness(1.05);box-shadow:0 8px 20px #0006;}
+.entry__primary:active:not(:disabled){transform:translateY(1px) scale(.995);}
+.entry__table-seats {color:#ecd3a9;}
+.entry__base-mode{background:#14271f;border:1px solid rgba(221,183,118,.18);}
+.entry__base-mode button.active{background:#d9b881;border-color:#efd4a6;color:#26251d;}
+.entry__privacy{background:#19382a;border-color:#4c6b51;}
+.entry__switch.active{background:#a98353;}
+.entry__bot-portrait{color:#cdab78;}
+.entry__bots h3{color:#f1dfc1;}
+@media(max-width:950px){
+  .entry{max-width:680px;grid-template-columns:1fr;gap:15px;padding:25px 20px 45px;}
+  .entry__story{align-items:center;}
+  .entry__story h1{font-size:clamp(45px,10vw,73px);text-align:center;}
+  .entry__card-scene{width:240px;height:124px;align-items:center;margin:16px auto 2px;overflow:hidden;}
+  .entry__fan{height:150px;width:230px;}
+  .entry__fan-card{left:calc(50% - 43px);}
+  .entry__fan-card :deep(.playing-card){--width:80px!important;}
+  .entry__fan-card--0{transform:translate(-53px,13px) rotate(-22deg);}
+  .entry__fan-card--1{transform:translate(2px,0) rotate(3deg);}
+  .entry__fan-card--2{transform:translate(56px,15px) rotate(22deg);}
+  .entry__panel{width:100%;}
+}
+@media(max-width:560px){
+  .entry{padding:22px 10px 36px;gap:14px;}
+  .entry__story h1{font-size:clamp(38px,11vw,58px);line-height:1.02;}
+  .entry__card-scene{height:94px;margin:9px 0 0;}
+  .entry__fan-card :deep(.playing-card){--width:60px!important;}
+  .entry__fan-card{left:calc(50% - 29px);}
+  .entry__fan-card--0{transform:translate(-40px,7px) rotate(-23deg);}
+  .entry__fan-card--2{transform:translate(42px,8px) rotate(22deg);}
+  .entry__panel{padding:19px 14px;border-radius:16px;gap:13px;}
+  .entry__panel h2{font-size:25px;}
+  .entry__mode button{min-height:60px;}
+  .entry__mode b{font-size:12px;}
+  .entry__mode small{font-size:10px;}
+}
+@media(prefers-reduced-motion:reduce){
+  .entry__mode button,.entry__tabs button,.entry__table-item,.entry__primary{transition:none!important;}
+}
+
 </style>
