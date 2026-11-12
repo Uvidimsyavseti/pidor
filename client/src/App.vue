@@ -285,10 +285,11 @@ function onDeckDown(e: PointerEvent) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   // Drawing is a single deliberate tap. Do not begin a drag before the
   // server has actually assigned a card to this player.
-  deckGestureId.value = null;
-  deckGestureHeld.value = false;
+  deckGestureId.value = e.pointerId;
+  deckGestureHeld.value = true;
   activeDragging.value = false;
   dragTarget.value = null;
+  dragPoint.value = { x: e.clientX, y: e.clientY };
   drawDeck();
   e.preventDefault();
 }
@@ -304,7 +305,7 @@ function onActiveDown(e: PointerEvent) {
 function movePointer(e: PointerEvent) {
   if (deckGestureId.value !== e.pointerId) return;
   dragPoint.value = { x: e.clientX, y: e.clientY };
-  // Dragging starts on the revealed active card, never on the deck.
+  if (!activeDragging.value && deckGestureHeld.value && active.value && isMyTurn.value && currentPhase.value === 'DEALING') activeDragging.value = true;
   if (activeDragging.value) {
     dragTarget.value = document.elementsFromPoint(e.clientX, e.clientY)
       .map(el => (el as HTMLElement).closest<HTMLElement>('[data-seat-id]'))
@@ -438,9 +439,7 @@ watch(state, (value, old) => {
   if (value.activeCard?.card.id && value.activeCard.card.id !== old?.activeCard?.card.id) {
     // The deck pointer may have been released before the server confirmed the draw.
     // Never keep the drawn card in a phantom drag state.
-    deckGestureHeld.value = false;
-    activeDragging.value = false;
-    dragTarget.value = null;
+    if (!deckGestureHeld.value) { activeDragging.value = false; dragTarget.value = null; }
     if (value.activeCard.fromDeck && value.activeCard.ownerId === game.playerId) showToast('Карта открыта — перетащи её на игрока или нажми на его стопку');
     activeFlightId.value = value.activeCard.card.id;
     void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
