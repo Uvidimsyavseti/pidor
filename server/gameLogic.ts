@@ -297,81 +297,34 @@ export class PidorGame {
   placeActiveCard(actorId: string, targetId: string): boolean {
     const actorIdx = this.getPlayerIdx(actorId);
     const targetIdx = this.getPlayerIdx(targetId);
-    if (actorIdx === -1 || targetIdx === -1 || !this.state.activeCard) return false;
+    if (actorIdx < 0 || targetIdx < 0 || !this.state.activeCard) return false;
     if (this.state.activeCard.ownerId !== actorId) return false;
     const { card, fromDeck } = this.state.activeCard;
-    const opportunistic = fromDeck && this.state.lastDrawEvent?.playerId === actorId
-      && this.state.lastDrawEvent.outOfTurn
-      && this.state.lastDrawEvent.createdAt > 0;
-    if (actorIdx !== this.state.turnIndex && !opportunistic) {
-      this.addPenalty(actorIdx, 'Ход вне очереди');
-      return false;
-    }
-    const actor = this.state.players[actorIdx];
-    const target = this.state.players[targetIdx];
-    const targetTop = target.stumps[target.stumps.length - 1];
+    const opportunistic = actorIdx !== this.state.turnIndex && fromDeck &&
+      this.state.lastDrawEvent?.playerId === actorId && this.state.lastDrawEvent.outOfTurn;
+    if (actorIdx !== this.state.turnIndex && !opportunistic) return false;
     const isSelf = actorIdx === targetIdx;
-    
-    const beatsTarget = this.canBeat(card, targetTop);
-    const isLastDeckCard = fromDeck && this.state.deck.length === 0;
-
-    // Rule: Last deck card always to self
-    if (isLastDeckCard) {
-      if (!isSelf) this.addPenalty(actorIdx, "Последняя карта колоды - твоя");
-      this.state.players[actorIdx].stumps.push(card);
-      this.state.activeCard = null;
-      if (!opportunistic) this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
-      this.checkPhaseEnd();
-      return true;
-    }
-
-    // Check if anyone else in circle is a better target
-    let firstPriorityIdx = -1;
+    const top = this.state.players[targetIdx].stumps.at(-1)!;
+    const legal = this.canBeat(card, top);
+    let first = -1;
     for (let i = 1; i < this.state.players.length; i++) {
-      const checkIdx = (actorIdx + i) % this.state.players.length;
-      if (this.canBeat(card, this.state.players[checkIdx].stumps[this.state.players[checkIdx].stumps.length - 1])) {
-        firstPriorityIdx = checkIdx;
-        break;
-      }
+      const idx = (actorIdx + i) % this.state.players.length;
+      if (this.canBeat(card, this.state.players[idx].stumps.at(-1)!)) { first = idx; break; }
     }
-
-    if (isSelf) {
-      // Placing on self is ALWAYS ALLOWED
-      if (firstPriorityIdx !== -1) {
-        this.addPenalty(actorIdx, `Не кинул карту ${this.state.players[firstPriorityIdx].name}, хотя мог`);
-      }
-      target.stumps.push(card);
-      this.state.activeCard = null;
-      if (!opportunistic && !beatsTarget) this.state.turnIndex = (this.state.turnIndex + 1) % this.state.players.length;
-      this.checkPhaseEnd();
-      return true;
-    } else {
-      // Placing on others: MUST beat them
-      if (!beatsTarget) {
-        this.addPenalty(actorIdx, "Карта не бьет мишень");
-        return false;
-      }
-      if (firstPriorityIdx !== -1 && targetIdx !== firstPriorityIdx) {
-        // Check if target is at least valid (already checked by beatsTarget) 
-        // but maybe someone earlier in circle was missed
-        let foundEarlier = false;
-        for (let i = 1; i < this.state.players.length; i++) {
-          const idx = (actorIdx + i) % this.state.players.length;
-          if (idx === targetIdx) break;
-          if (this.canBeat(card, this.state.players[idx].stumps[this.state.players[idx].stumps.length - 1])) {
-             this.addPenalty(actorIdx, `Не первому по кругу (должен был ${this.state.players[idx].name})`);
-             foundEarlier = true;
-             break;
-          }
-        }
-      }
-      target.stumps.push(card);
-      if (card.rank === '6' && targetTop.rank === 'A') this.addPenalty(targetIdx, "Схлопотал 6 на Туза");
-      this.state.activeCard = null;
-      // beats someone else -> keep turn
-      this.checkPhaseEnd();
-      return true;
+    // Dishonest placements are allowed but may be called out for 15 seconds.
+    if (!isSelf && !legal) this.addPenalty(actorIdx, 'Неверная последовательность', card.id);
+    else if (isSelf && first !== -1) this.addPenalty(actorIdx, 'Не перекинул карту сопернику', card.id);
+    else if (!isSelf && first !== -1 && first !== targetIdx) {
+      this.addPenalty(actorIdx, 'Пропустил игрока по кругу', card.id);
     }
+    this.state.players[targetIdx].stumps.push(card);
+    this.state.activeCard = null;
+    // A valid drop on another player continues the chain.
+    if (!opportunistic && (isSelf || !legal)) {
+      this.state.turnIndex = (actorIdx + 1) % this.state.players.length;
+    }
+    this.checkPhaseEnd();
+    return true;
   }
 
   private findOtherBeatTarget(actorIdx: number): number {
