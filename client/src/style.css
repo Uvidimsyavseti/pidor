@@ -281,3 +281,32 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 .profile__history {max-height:32vh;overflow-y:auto;display:flex;flex-direction:column;gap:5px;}
 .profile__match {display:flex;flex-direction:column;gap:4px;padding:10px 12px;background:#ffffff09;border-radius:9px;font-size:13px;}
 .profile__match small {opacity:.65;font-size:11px;}
+
+
+/* Telegram-first mobile layout: keep cards and labels inside viewport edges. */
+.app-shell { padding-left:max(16px,env(safe-area-inset-left),var(--tg-safe-left));padding-right:max(16px,env(safe-area-inset-right),var(--tg-safe-right)); }
+.table__seat--left {left:5%;} .table__seat--right {right:5%;}
+.table__seat--top-left {left:17%;} .table__seat--top-right {right:17%;}
+.table__seat--top-center {top:4%;}
+.table__deck {top:49%;}
+.hand-fan__slot .playing-card {border:0;outline:0;box-shadow:0 7px 14px #0007;overflow:hidden;}
+.hand-fan__slot--active .playing-card {box-shadow:0 13px 24px #0009,0 0 15px #e7c58d32;}
+.hand-fan__slot {filter:none;}
+.table-vfx {position:fixed;z-index:98;pointer-events:none;width:0;height:0;filter:drop-shadow(0 0 5px #eac47c);animation:vfx-flash .45s ease-out both;}
+.table-vfx i {position:absolute;left:0;top:0;width:3px;height:11px;border-radius:3px;background:#f9d69b;transform:rotate(var(--spark-angle)) translateY(-9px);transform-origin:center 24px;animation:vfx-spark .55s cubic-bezier(.1,.6,.2,1) both;}
+.table-vfx--penalty i {background:#ff877a;}
+.table-vfx--play i {background:#d5f5c5;}
+@keyframes vfx-spark {0%{opacity:1;transform:rotate(var(--spark-angle)) translateY(-7px) scale(1.2)}100%{opacity:0;transform:rotate(var(--spark-angle)) translateY(-46px) scale(.15)}}
+@keyframes vfx-flash {0%{opacity:0}20%{opacity:1}100%{opacity:0}}
+@media (max-width:430px) {
+  .table__seat--left {left:5%;} .table__seat--right {right:5%;}
+  .table__seat--top-left {left:18%;} .table__seat--top-right {right:18%;}
+  .table__seat--top-center {top:4%;}
+  .seat__name {max-width:58px;}
+  .game-bar {gap:3px;}
+  .game-bar__actions {gap:1px;}
+  .icon-button {min-width:29px;padding:4px;}
+  .brand {font-size:14px;}
+  .game-bar__meta {max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+}
+@media (prefers-reduced-motion:reduce){.table-vfx,.table-vfx i{animation:none;display:none;}}
