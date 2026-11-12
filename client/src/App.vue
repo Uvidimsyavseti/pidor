@@ -383,7 +383,7 @@ async function flyCard(card: Card, targetId: string | null, faceUp: boolean, ori
   await nextTick();
   const element = flightRef.value;
   if (!element) { flight.value = null; return; }
-  const ms = reducedMotion ? 70 : (targetId ? 560 : 490);
+  const ms = reducedMotion ? 70 : (targetId ? (animationLocked.value ? 170 : 460) : 430);
   // A card moves along a shallow arc with a continuously interpolated size.
   // Both endpoints match the real DOM card, so no scale pop on landing.
   const start = Math.max(.3, sourceScale);
@@ -431,7 +431,7 @@ async function replayInitialDeal(cards: DealEvent[]) {
     await enqueueFlight(item.card, item.target, item.faceUp);
     hiddenIds.value = new Set([...hiddenIds.value].filter(id => id !== item.card.id));
     tone('drop');
-    if (!reducedMotion) await new Promise(resolve => setTimeout(resolve, 38));
+    if (!reducedMotion) await new Promise(resolve => setTimeout(resolve, 12));
   }
   hiddenIds.value = new Set();
   animationLocked.value = false;
@@ -503,10 +503,14 @@ watch(state, (value, old) => {
       queueMicrotask(() => placeCard(destination));
     }
     if (value.activeCard.fromDeck && value.activeCard.ownerId === game.playerId) showToast('Карта открыта — перетащи её на игрока или нажми на его стопку');
-    activeFlightId.value = value.activeCard.card.id;
-    if (!deckGestureHeld.value && !queuedDrop && !activeDragging.value) void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
-      activeFlightId.value = null;
-    });
+    // Hide the active card only when its arrival flight is actually running.
+    // Otherwise it vanishes indefinitely when the server replies mid-drag.
+    if (!deckGestureHeld.value && !queuedDrop && !activeDragging.value) {
+      activeFlightId.value = value.activeCard.card.id;
+      void enqueueFlight(value.activeCard.card, null, true, value.activeCard.fromDeck ? undefined : value.activeCard.ownerId).finally(() => {
+        activeFlightId.value = null;
+      });
+    } else activeFlightId.value = null;
   }
   if (old?.turnIndex !== value.turnIndex && value.phase !== 'LOBBY') tone('turn');
   if (pending.value && old?.activeCard?.card.id !== value.activeCard?.card.id) pending.value = null;
