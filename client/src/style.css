@@ -128,8 +128,9 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 .seat__count, .seat__status { font-size: 9px; color: #f5e7cf93; line-height: 1.1; }
 .seat__status { color: #aec8a4; }
 .seat--exited { opacity: .55; }
-.seat--me .seat__cards { display: none; }
-.seat--me .seat__count { display: none; }
+.table__seat--self { bottom: 1%; left: 50%; transform: translateX(-50%); }
+.table__seat--target .seat__name { color: var(--gold); text-shadow: 0 0 12px #eed1a8; }
+.table__active-anchor { position: absolute; left: 50%; top: 55%; width: 84px; height: 118px; transform: translate(-50%, -50%); pointer-events: none; }
 .playing-card {
   width: 84px; height: 118px; overflow: hidden; background: #f5edda;
   border-radius: 6px; box-shadow: 0 5px 12px #0008, inset 0 0 0 1px #fff4;
