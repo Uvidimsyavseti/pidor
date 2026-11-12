@@ -292,6 +292,20 @@ export class PidorRoom extends DurableObject<Env> {
       await this.clearVacantRoom();
     }
     if (!session) {
+      if (this.game.state.players.length === 0) {
+        let useBase = payload.underlaidCards !== false;
+        if (payload.mode !== 'bot' && this.roomId) {
+          try {
+            const response = await this.env.LOBBY.getByName('public-tables').fetch(
+              'https://lobby.internal/get?id=' + encodeURIComponent(this.roomId));
+            if (response.ok) {
+              const record = await response.json() as { table?: { underlaidCards?: boolean } };
+              useBase = record.table?.underlaidCards !== false;
+            }
+          } catch { /* Existing private room without a directory entry */ }
+        }
+        this.game.state.underlaidCards = useBase;
+      }
       if (this.roomMode === 'bot' && this.game.state.players.length) {
         return emit(socket, 'joinError', 'Это одиночная игра. Создай свою комнату с ботом.');
       }
