@@ -308,7 +308,14 @@ export class PidorGame {
   }
 
   drawTo(actorId: string, targetId: string): boolean {
+    // Validate both participants BEFORE touching the deck. A malformed drop
+    // must never consume a card or leave an unresolved active card behind.
+    if (!this.state.players.some(p => p.id === actorId) ||
+        !this.state.players.some(p => p.id === targetId) ||
+        this.state.phase !== 'DEALING' || !this.state.deck.length ||
+        this.state.activeCard) return false;
     if (!this.takeFromDeck(actorId)) return false;
+    // Forced self cards (spade six / last card) have already landed.
     return !this.state.activeCard || this.placeActiveCard(actorId, targetId);
   }
 
@@ -318,6 +325,9 @@ export class PidorGame {
     if (actorIdx < 0 || targetIdx < 0 || !this.state.activeCard) return false;
     if (this.state.activeCard.ownerId !== actorId) return false;
     const { card, fromDeck } = this.state.activeCard;
+    // A lifted pile card cannot be 'dropped' back on the same pile to
+    // manufacture a turn ending. It belongs to another player's pile.
+    if (!fromDeck && actorIdx === targetIdx) return false;
     const opportunistic = actorIdx !== this.state.turnIndex && fromDeck &&
       this.state.lastDrawEvent?.playerId === actorId && this.state.lastDrawEvent.outOfTurn;
     if (actorIdx !== this.state.turnIndex && !opportunistic) return false;
