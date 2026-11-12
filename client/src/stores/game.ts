@@ -173,7 +173,12 @@ export const useGameStore = defineStore('game', {
     },
     send(type: string, data: Record<string, unknown> = {}) {
       if (this.socket?.readyState === WebSocket.OPEN && this.joined) {
-        this.socket.send(JSON.stringify({ type, data }));
+        // Each intent has a stable one-off ID. The Durable Object keeps a
+        // recent replay window per player, preventing repeated network delivery
+        // from drawing or transferring a second card.
+        this.socket.send(JSON.stringify({
+          type, data: { ...data, actionId: crypto.randomUUID() }
+        }));
       }
     },
     startGame() { this.send('startGame'); },
