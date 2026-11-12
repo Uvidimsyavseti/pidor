@@ -506,3 +506,135 @@
   .gesture-card__inner{transition:none;}
   .game-board__flight-card{animation-duration:100ms!important;}
 }
+
+/* ━━━━━━━━━━━━━━━━━ P1 · One coherent, quiet card table ━━━━━━━━━━━━━━━━━
+   Player names, their actual cards, the communal deck and the hand are the
+   interface. No seat frames, no empty placeholders or trump panels. */
+.app-shell--playing .game-room{
+  gap:5px;padding:5px 0 3px;
+  grid-template-rows:27px minmax(0,1fr) minmax(145px,27%);
+}
+.app-shell--playing .game-room__status{
+  background:transparent;border:0;box-shadow:none;
+  min-height:0;padding:0 11px;border-radius:0;
+}
+.app-shell--playing .game-room__stage{color:#c6a876;font-size:10px;letter-spacing:.11em;}
+.app-shell--playing .game-room__turn{
+  background:rgba(22,53,38,.7);
+  border:1px solid rgba(219,180,113,.35);
+  color:#f2daaa;box-shadow:none;border-radius:20px;
+}
+.app-shell--playing .game-room__turn--mine{
+  background:#315942;border-color:#efd099;color:#fff2cf;
+  box-shadow:0 0 12px rgba(211,181,104,.18);
+}
+.app-shell--playing .game-board{
+  border:8px solid #805439;
+  border-radius:clamp(23px,4.5vw,48px);
+  grid-template-rows:minmax(68px,26%) minmax(0,1fr) 14px;
+  gap:1px;padding:10px clamp(6px,1.3vw,18px) 7px;
+  background:
+    radial-gradient(ellipse 86% 95% at 50% 44%,rgba(75,122,78,.37),transparent 80%),
+    linear-gradient(165deg,#214d37 0%,#214c36 51%,#153e2b 100%);
+  box-shadow:0 0 0 1px rgba(204,153,91,.55),0 10px 29px rgba(0,0,0,.27),
+    inset 0 1px 1px rgba(247,215,160,.2),inset 0 0 36px #071c1055;
+}
+.app-shell--playing .game-board__rim{display:none;}
+.app-shell--playing .game-board__top-seats{gap:clamp(3px,1vw,12px);align-items:center;}
+.app-shell--playing .game-board__top-seats>.seat{max-width:200px;}
+.app-shell--playing .game-board__middle{
+  grid-template-columns:minmax(0,1fr) clamp(84px,19vw,158px) minmax(0,1fr);
+  align-items:center;gap:2px;
+}
+.app-shell--playing .game-board__side>.seat{max-width:188px;height:auto;min-height:80px;}
+.app-shell--playing .game-board__center{justify-content:center;gap:9px;}
+.app-shell--playing .game-board__small-label{display:none;}
+.app-shell--playing .game-board__deck{filter:drop-shadow(0 7px 7px rgba(0,0,0,.42));}
+.app-shell--playing .game-board__action-stack{
+  border:0;background:none;box-shadow:none;padding:0;
+}
+.app-shell--playing .game-board__active-card{
+  filter:drop-shadow(0 8px 11px rgba(0,0,0,.43));
+}
+.app-shell--playing .game-board__trump-mark{
+  border:0;box-shadow:none;padding:0;background:none;font-size:26px;
+}
+.app-shell--playing .game-board__footer{
+  min-height:0;align-items:flex-end;justify-content:center;
+  font-size:9px;opacity:.58;
+}
+.app-shell--playing .game-hand{
+  background:radial-gradient(ellipse 75% 100% at 50% 120%,#1d4b35 0%,#122d22 100%);
+  border:0;box-shadow:none;outline:0;
+  border-radius:22px 22px 9px 9px;
+  overflow:visible;padding:4px 9px 4px;
+}
+.app-shell--playing .game-hand__controls{min-height:21px;flex:0 0 22px;padding:0 9px;}
+.app-shell--playing .game-room--main_game .game-hand__instruction{display:none;}
+.app-shell--playing .game-room--main_game .game-hand__controls{min-height:0;flex:0 0 9px;}
+.app-shell--playing .game-hand .seat--me{overflow:visible;}
+.app-shell--playing .game-hand .seat__identity{
+  padding:1px 5px;align-self:center;z-index:4;
+}
+.app-shell--playing .game-hand .seat__hand-heading{display:none;}
+.app-shell--playing .game-hand .seat__mine{overflow:visible;}
+.app-shell--playing .game-room--main_game .game-hand{
+  padding-bottom:max(3px,env(safe-area-inset-bottom,0px));
+}
+.app-shell--playing .game-board__active-card:not(:disabled){
+  animation:active-card-highlight 1.4s ease-in-out infinite;
+}
+/* A card is visible the instant its server-reveal event arrives, not after
+   the old independent 740ms center-screen flip. */
+.app-shell--playing .game-board__action-zone{
+  min-height:0;max-height:100%;overflow:visible;
+  animation:deck-reveal-fast .2s ease-out;
+}
+@keyframes deck-reveal-fast{
+  from{opacity:.72;transform:translateY(-11px) rotateY(72deg) scale(.94);}
+  to{opacity:1;transform:translateY(0) rotateY(0) scale(1);}
+}
+.gesture-card__inner{transition-duration:130ms!important;}
+@media(max-width:680px){
+  .app-shell--playing .game-room{
+    grid-template-rows:25px minmax(0,1fr) minmax(152px,29%);
+    gap:3px;padding:3px 0 2px;
+  }
+  .app-shell--playing .game-board{
+    border-width:5px;border-radius:24px;
+    grid-template-rows:minmax(65px,27%) minmax(0,1fr) 13px;
+    padding:12px 5px 5px;
+  }
+  .app-shell--playing .game-board__middle{
+    grid-template-columns:minmax(0,1fr) clamp(76px,24vw,116px) minmax(0,1fr);
+    gap:1px;
+  }
+  .app-shell--playing .game-board__top-seats{gap:1px;}
+  .app-shell--playing .game-board__side>.seat{min-height:68px;}
+  .app-shell--playing .game-board__center{gap:4px;}
+  .app-shell--playing .game-hand{padding:2px 4px 3px;border-radius:16px 16px 6px 6px;}
+  .app-shell--playing .game-hand__controls{padding:0 5px;flex-basis:19px;}
+  .app-shell--playing .game-room--main_game .game-hand__controls{flex-basis:6px;}
+}
+@media(max-width:360px){
+  .app-shell--playing .game-room{grid-template-rows:22px minmax(0,1fr) minmax(144px,30%);}
+  .app-shell--playing .game-board{
+    border-width:4px;border-radius:18px;padding:11px 4px 4px;
+  }
+  .app-shell--playing .game-board__middle{
+    grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);
+  }
+  .app-shell--playing .game-board__top-seats>.seat{min-width:0;}
+}
+@media(max-height:640px){
+  .app-shell--playing .game-room{
+    grid-template-rows:22px minmax(0,1fr) minmax(129px,31%);
+  }
+  .app-shell--playing .game-board{
+    grid-template-rows:minmax(61px,29%) minmax(0,1fr) 10px;
+    padding-top:10px;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .app-shell--playing .game-board__action-zone{animation:none;}
+}
