@@ -14,6 +14,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   cardClick: [payload: { card: Card; ownerId: string }];
   click: [];
+  dragStart: [event: PointerEvent];
 }>();
 
 const handExpanded = ref(false);
@@ -56,7 +57,7 @@ function selectCard(card: Card) {
         <div class="seat__meta">
           <span v-if="player.hasExited" class="seat__exited-label">Вышел из игры</span>
           <span v-else-if="player.onDuty" class="seat__duty">На вахте</span>
-          <span v-else>{{ player.hand.length }} в руке · {{ player.stumps.length }} пеньки</span>
+          <span v-else>{{ player.hand.length }} в руке · {{ player.stumps.length }} похуёвых</span>
         </div>
       </div>
       <div v-if="player.penalties" class="seat__penalties" :title="'Штрафы: ' + player.penalties">
@@ -80,7 +81,7 @@ function selectCard(card: Card) {
           <span class="seat__pile-count">{{ player.stumps.length }}</span>
         </div>
       </div>
-      <div v-if="targetable && !player.hasExited" class="seat__target-hint">Нажми, чтобы передать карту</div>
+      
     </template>
 
     <template v-else>
@@ -101,21 +102,16 @@ function selectCard(card: Card) {
         </div>
 
         <div v-if="['DEALING','PENALTY_REVIEW'].includes(phase)" class="seat__deal-area" data-testid="my-dealing-pile">
-          <div class="seat__deal-info">
-            <strong>Собираем стопку</strong>
-            <span>Нижние карты скрыты. Видна только верхняя карта.</span>
-            <span v-if="player.stumps.length > 3">Можно передать верхнюю карту сопернику, если она бьёт его карту.</span>
-          </div>
           <div class="seat__stack" :aria-label="'Стопка из ' + player.stumps.length + ' карт'">
             <div class="seat__stack-layer seat__stack-layer--bottom"><CardComponent hidden /></div>
             <div v-if="player.stumps.length > 1" class="seat__stack-layer seat__stack-layer--middle"><CardComponent hidden /></div>
             <div :key="player.stumps[player.stumps.length - 1]?.id" class="seat__stack-layer seat__stack-layer--top">
               <button
-                v-if="player.stumps.length > 3"
+                v-if="player.stumps.length > 1 && isTurn"
                 type="button"
                 class="seat__card-button seat__stack-button"
                 :aria-label="'Передать верхнюю карту ' + player.stumps[player.stumps.length - 1]?.rank + ' ' + player.stumps[player.stumps.length - 1]?.suit"
-                @click.stop="selectCard(player.stumps[player.stumps.length - 1]!)"
+                @pointerdown.stop.prevent="emit('dragStart', $event)"
               ><CardComponent :card="player.stumps[player.stumps.length - 1]" /></button>
               <CardComponent v-else :card="player.stumps[player.stumps.length - 1]" />
             </div>
@@ -125,7 +121,7 @@ function selectCard(card: Card) {
 
         <div v-else class="seat__play-area">
           <div class="seat__reserved">
-            <span class="seat__section-label">ПЕНЬКИ · {{ player.stumps.length }}</span>
+            <span class="seat__section-label">ПОХУЁВЫЕ · {{ player.stumps.length }}</span>
             <div class="seat__reserved-cards">
               <CardComponent v-if="player.stumps.length > 1" hidden small />
               <CardComponent v-if="player.stumps.length" hidden small />
@@ -293,4 +289,5 @@ function selectCard(card: Card) {
 @keyframes card-appear { from { opacity:.25; filter:blur(2px); } to { opacity:1; filter:blur(0); } }
 @media (prefers-reduced-motion:reduce) { .seat--target,.seat__hand-card {animation:none;} }
 
+.seat__deal-info{display:none}.seat__deal-area{justify-content:center;min-height:125px}.seat__stack-button{touch-action:none;cursor:grab}
 </style>
