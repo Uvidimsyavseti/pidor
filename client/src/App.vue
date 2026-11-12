@@ -15,6 +15,35 @@ const game = useGameStore();
 const name = ref('');
 const room = ref('pidor-1');
 const joined = ref(false);
+type MatchRecord = { room: string; at: number; players: number; penalties: number; result: 'finished' | 'last' };
+const statsKey = 'pidor:profile:v1';
+function loadHistory(): MatchRecord[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(statsKey) || '[]') as unknown;
+    return Array.isArray(value) ? value.filter((v): v is MatchRecord =>
+      typeof v === 'object' && v !== null && typeof v.at === 'number' &&
+      typeof v.room === 'string' && (v.result === 'finished' || v.result === 'last')).slice(0, 30) : [];
+  } catch { return []; }
+}
+const history = ref<MatchRecord[]>(loadHistory());
+const showProfile = ref(false);
+const totalMatches = computed(() => history.value.length);
+const survivedMatches = computed(() => history.value.filter(m => m.result === 'finished').length);
+const totalPenalties = computed(() => history.value.reduce((sum, m) => sum + m.penalties, 0));
+let recordedEndKey = '';
+function recordFinishedMatch() {
+  if (!state.value || state.value.phase !== 'ENDED' || !me.value || !game.roomId) return;
+  const key = 'pidor:recorded:' + game.roomId + ':' + game.playerId;
+  if (recordedEndKey === key || localStorage.getItem(key)) return;
+  recordedEndKey = key;
+  const entry: MatchRecord = {
+    room: game.roomId, at: Date.now(), players: state.value.players.length,
+    penalties: me.value.penalties, result: me.value.onDuty ? 'last' : 'finished',
+  };
+  history.value = [entry, ...history.value].slice(0, 30);
+  localStorage.setItem(statsKey, JSON.stringify(history.value));
+  localStorage.setItem(key, '1');
+}
 const underlaid = ref(true);
 const bots = ref(3);
 const uiTab = ref<'free' | 'create' | 'code' | 'bots'>('free');
@@ -145,7 +174,7 @@ function joinRoom(id: string, opts: { mode?: 'friends' | 'bot'; botCount?: numbe
   game.joinRoom(name.value.trim(), id, opts);
   joined.value = true;
   localStorage.setItem('pidor:name', name.value.trim());
-  history.replaceState(null, '', '?room=' + encodeURIComponent(id));
+  window.history.replaceState(null, '', '?room=' + encodeURIComponent(id));
   tone('turn');
 }
 function join() { joinRoom(room.value.trim(), { mode: 'friends', underlaidCards: underlaid.value }); }
@@ -176,7 +205,7 @@ function backToLobby() {
   game.disconnect();
   joined.value = false;
   selectedPenalty.value = null;
-  history.replaceState(null, '', location.pathname);
+  window.history.replaceState(null, '', location.pathname);
   void game.fetchTables();
 }
 function accuseSelected() {
@@ -330,6 +359,7 @@ async function replayInitialDeal(cards: DealEvent[]) {
 
 watch(state, (value, old) => {
   if (!value) return;
+  if (value.phase === 'ENDED') recordFinishedMatch();
   // Initial server snapshot is authoritative: replay actual card IDs in round-robin order.
   if (value.phase === 'DEALING' && old?.phase !== 'DEALING' && value.initialDealEndsAt && Date.now() < value.initialDealEndsAt) {
     const rounds = Math.max(...value.players.map(p => p.stumps.length), 0);
@@ -431,12 +461,34 @@ onBeforeUnmount(() => {
         <div class="game-bar__meta">{{ joined ? phaseText + ' · ' + room : 'Карточная игра' }}</div>
       </div>
       <div class="game-bar__actions">
+        <button type="button" class="icon-button" aria-label="Профиль и история партий" @click="showProfile = !showProfile">♙</button>
         <div class="stars-placeholder" title="Игровые звёзды появятся позже">★ 0 <small>скоро</small></div>
         <button class="icon-button" type="button" :aria-label="soundOn ? 'Выключить звук' : 'Включить звук'" @click="toggleSound">{{ soundOn ? '♫' : '♪̸' }}</button><button v-if="joined" type="button" class="icon-button" @click="backToLobby" aria-label="К списку столов">⌂</button>
       </div>
     </header>
 
-    <section v-if="!joined" class="lobby">
+    <section v-if="showProfile" class="lobby">
+      <div class="lobby__panel">
+        <h1 class="lobby__title">Мой профиль</h1>
+        <p class="lobby__subtitle">{{ name || game.playerName || 'Игрок' }}</p>
+        <div class="profile__metrics">
+          <span>Партий <b>{{ totalMatches }}</b></span>
+          <span>Не последний <b>{{ survivedMatches }}</b></span>
+          <span>Штрафов <b>{{ totalPenalties }}</b></span>
+        </div>
+        <h2 class="profile__heading">Последние партии</h2>
+        <div class="profile__history">
+          <div v-for="match in history" :key="match.room + match.at" class="profile__match">
+            <span>{{ match.result === 'last' ? '☠ Последний' : '✓ Не последний' }} · {{ match.players }} игроков</span>
+            <small>{{ new Date(match.at).toLocaleDateString('ru-RU') }} · {{ match.penalties }} штрафов</small>
+          </div>
+          <p v-if="!history.length" class="lobby__subtitle">Заверши первую партию, чтобы появилась статистика.</p>
+        </div>
+        <p class="lobby__subtitle">История пока хранится на этом устройстве. Синхронизацию с Telegram добавим отдельно.</p>
+        <button class="lobby__button" @click="showProfile = false">Вернуться к игре</button>
+      </div>
+    </section>
+    <section v-else-if="!joined" class="lobby">
       <div class="lobby__panel">
         <h1 class="lobby__title">PIDOR ONLINE</h1>
         <p class="lobby__subtitle">Игра для своих.</p>
