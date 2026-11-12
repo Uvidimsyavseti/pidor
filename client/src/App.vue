@@ -296,6 +296,12 @@ function beginDrag(event: PointerEvent, kind: 'deck' | 'pile' | 'active') {
   if (kind === 'active' && state.value.activeCard?.ownerId !== gameStore.playerId) return;
   event.preventDefault();
   event.stopPropagation();
+  // Keep touch capture even when the deck becomes temporarily unavailable
+  // after the server accepts the draw (important in Telegram/iOS WebView).
+  const origin = event.currentTarget;
+  if (origin instanceof HTMLElement && origin.setPointerCapture) {
+    try { origin.setPointerCapture(event.pointerId); } catch { /* stale pointer */ }
+  }
   const card = kind === 'active' ? state.value.activeCard!.card
     : kind === 'pile' ? me.value!.stumps[me.value!.stumps.length - 1]! : null;
   dragging.value = {kind,pointerId:event.pointerId,x:event.clientX,y:event.clientY,
@@ -594,7 +600,7 @@ watch(() => gameStore.drawReveal?.id, id => { if (id) playSound('draw'); });
               <div class="game-board__deck-zone">
                 <span v-if="state.deck.length" class="game-board__small-label">КОЛОДА</span>
                 <button v-if="state.deck.length" type="button" class="game-board__deck" :class="{ 'game-board__deck--ready': canDraw }"
-                  :disabled="!canDraw" title="Взять карту" aria-label="Взять карту и открыть всем игрокам"
+                  :disabled="!canDraw && dragging?.kind !== 'deck'" title="Взять карту" aria-label="Взять карту и открыть всем игрокам"
                   @pointerdown.prevent="beginDrag($event, 'deck')">
                   <CardComponent hidden />
                 </button>
