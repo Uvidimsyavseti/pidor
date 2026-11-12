@@ -29,7 +29,7 @@ function visibleState(state: GameState, playerId: string): GameState {
     // Only the top card of the dealing pile is public. All lower cards,
     // including the human player's own, remain concealed until moved to hand.
     p.stumps = original.stumps.map((card, i) =>
-      state.phase === 'DEALING' && i === original.stumps.length - 1 && i >= 2
+      state.phase === 'DEALING' && i === original.stumps.length - 1 && i >= (state.underlaidCards === false ? 0 : 2)
         ? card : mask('stumps-' + p.id + '-' + i));
     return p;
   });
