@@ -418,3 +418,16 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 .seat--active .seat__cards {filter:drop-shadow(0 0 11px #eec16b9c);}
 @keyframes turn-beacon {0%,100%{opacity:.7;transform:scale(.85)}50%{opacity:1;transform:scale(1.25)}}
 @media(prefers-reduced-motion:reduce){.seat--active .seat__turn{animation:none}}
+
+
+/* A small turn marker sits above the name rather than breaking its baseline. */
+.seat--active .seat__identity {position:relative;overflow:visible;filter:none;}
+.seat--active .seat__turn {
+ position:absolute;bottom:calc(100% + 3px);left:50%;transform:translateX(-50%);
+ font-size:8px;letter-spacing:.1em;line-height:1;padding:4px 7px;
+ color:#241a0d;background:linear-gradient(135deg,#ffe3a1,#d5a34f);
+ border-radius:999px;box-shadow:0 2px 8px #0006,0 0 11px #efbf6680;
+ text-shadow:none;white-space:nowrap;animation:none;
+}
+.seat--active .seat__name {color:#ffe5a2;text-shadow:0 0 9px #eebc6380;}
+.table__seat--target .seat__cards {filter:drop-shadow(0 0 15px #ffdc7c);transition:filter .16s ease;}
