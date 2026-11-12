@@ -431,3 +431,14 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 }
 .seat--active .seat__name {color:#ffe5a2;text-shadow:0 0 9px #eebc6380;}
 .table__seat--target .seat__cards {filter:drop-shadow(0 0 15px #ffdc7c);transition:filter .16s ease;}
+
+
+/* During deck pickup, a single card stays attached to the finger,
+   even before the server reveals its face. */
+.table__deck-drag-preview {
+ position:absolute;left:var(--drag-x);top:var(--drag-y);
+ transform:translate(-50%,-50%) scale(1.04);
+ z-index:96;pointer-events:none;will-change:left,top;
+ filter:drop-shadow(0 16px 16px #0009);
+}
+.table__deck-drag-preview .playing-card {width:84px;height:118px;transform:none!important;}
