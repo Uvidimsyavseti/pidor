@@ -57,10 +57,10 @@ function selectCard(card: Card) {
         <div class="seat__meta">
           <span v-if="player.hasExited" class="seat__exited-label">Вышел из игры</span>
           <span v-else-if="player.onDuty" class="seat__duty">На вахте</span>
-          <span v-else>{{ player.hand.length }} в руке · {{ player.stumps.length }} похуёвых</span>
+          <span v-else>ПОХУЁВЫЕ · {{ player.penalties }}</span>
         </div>
       </div>
-      <div v-if="player.penalties" class="seat__penalties" :title="'Штрафы: ' + player.penalties">
+      <div v-if="player.penalties" class="seat__penalties" :title="'Похуёвые: ' + player.penalties">
         <span>!</span> {{ player.penalties }}
       </div>
       <span v-if="isTurn" class="seat__turn">ХОД</span>
@@ -88,7 +88,7 @@ function selectCard(card: Card) {
       <div class="seat__mine">
         <div class="seat__hand-heading">
           <div class="seat__hand-title">
-            <span class="seat__section-label">{{ ['DEALING','PENALTY_REVIEW'].includes(phase) ? 'ВАША СТОПКА' : 'ВАШИ КАРТЫ' }}</span>
+            <span class="seat__section-label">{{ ['DEALING','PENALTY_REVIEW'].includes(phase) ? '' : 'ВАШИ КАРТЫ' }}</span>
             <span class="seat__hand-count">{{ ['DEALING','PENALTY_REVIEW'].includes(phase) ? player.stumps.length : player.hand.length }} карт</span>
           </div>
           <button
@@ -107,7 +107,7 @@ function selectCard(card: Card) {
             <div v-if="player.stumps.length > 1" class="seat__stack-layer seat__stack-layer--middle"><CardComponent hidden /></div>
             <div :key="player.stumps[player.stumps.length - 1]?.id" class="seat__stack-layer seat__stack-layer--top">
               <button
-                v-if="player.stumps.length > 1 && isTurn"
+                v-if="player.stumps.length > 3 && isTurn"
                 type="button"
                 class="seat__card-button seat__stack-button"
                 :aria-label="'Передать верхнюю карту ' + player.stumps[player.stumps.length - 1]?.rank + ' ' + player.stumps[player.stumps.length - 1]?.suit"
@@ -121,7 +121,7 @@ function selectCard(card: Card) {
 
         <div v-else class="seat__play-area">
           <div class="seat__reserved">
-            <span class="seat__section-label">ПОХУЁВЫЕ · {{ player.stumps.length }}</span>
+            <span class="seat__section-label">СТОПКА · {{ player.stumps.length }}</span>
             <div class="seat__reserved-cards">
               <CardComponent v-if="player.stumps.length > 1" hidden small />
               <CardComponent v-if="player.stumps.length" hidden small />
@@ -290,4 +290,12 @@ function selectCard(card: Card) {
 @media (prefers-reduced-motion:reduce) { .seat--target,.seat__hand-card {animation:none;} }
 
 .seat__deal-info{display:none}.seat__deal-area{justify-content:center;min-height:125px}.seat__stack-button{touch-action:none;cursor:grab}
+
+/* Compact seat labels: player identity, a visible pile, and foul counter. */
+.seat--opponent .seat__meta { color:#f0c989; font-weight:800; font-size:10px; }
+.seat--opponent .seat__info { min-width:0; }
+.seat--opponent .seat__name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.seat--me .seat__hand-heading .seat__section-label:empty { display:none; }
+.seat__stack-layer--top:not(:has(button)) { cursor:default; }
+@media(max-width:680px){ .seat--opponent .seat__meta{font-size:9px;} .seat--opponent .seat__avatar{display:none;} }
 </style>
