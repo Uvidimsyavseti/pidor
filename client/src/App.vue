@@ -347,7 +347,13 @@ onMounted(() => {
   clockTimer = setInterval(() => { clock.value = Date.now(); }, 250);
   name.value = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || localStorage.getItem('pidor:name') || '';
   const requestRoom = new URLSearchParams(location.search).get('room');
-  if (requestRoom && /^[A-Za-z0-9_-]{1,48}$/.test(requestRoom)) { room.value = requestRoom; uiTab.value = 'code'; }
+  if (requestRoom && /^[A-Za-z0-9_-]{1,48}$/.test(requestRoom)) {
+    room.value = requestRoom;
+    uiTab.value = 'code';
+    if (name.value.trim() && localStorage.getItem('pidor:session:' + requestRoom)) {
+      joinRoom(requestRoom, { mode: 'friends' });
+    }
+  }
   void game.fetchTables();
 });
 onBeforeUnmount(() => {
