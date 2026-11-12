@@ -89,6 +89,26 @@ const riskyDraw = computed(() => state.value?.phase === 'DEALING' && !isMyTurn.v
 const canTakeStumps = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && !!me.value.stumps.length && state.value?.currentTrick.length === 0);
 const canExitGame = computed(() => state.value?.phase === 'MAIN_GAME' && me.value?.hand.length === 0 && me.value?.stumps.length === 0 && state.value?.currentTrick.length === 0 && !me.value.hasExited);
 const targeting = computed(() => state.value?.phase === 'DEALING' && state.value?.activeCard?.ownerId === gameStore.playerId);
+// The user may drop on ANY seat. Only the first eligible target gets a
+// recommended outline; other targets remain interactive for possible cheating.
+function isRecommendedTarget(playerId: string): boolean {
+  if (dragging.value?.kind !== 'pile' || !dragging.value.card || !state.value) return false;
+  const players = state.value.players;
+  const actorIdx = players.findIndex(p => p.id === gameStore.playerId);
+  if (actorIdx < 0) return false;
+  const card = dragging.value.card;
+  const ranks = ['6','7','8','9','10','J','Q','K','A'];
+  const legal = (top: Card | undefined) => {
+    if (!top) return false;
+    if (card.rank === '6') return card.suit !== 'spades' && top.rank === 'A';
+    return ranks.indexOf(card.rank) === ranks.indexOf(top.rank) + 1;
+  };
+  for (let i = 1; i < players.length; i++) {
+    const target = players[(actorIdx + i) % players.length];
+    if (legal(target.stumps.at(-1))) return target.id === playerId;
+  }
+  return playerId === gameStore.playerId;
+}
 const myPenaltyTurn = computed(() => state.value?.pendingPenaltyTurn?.giverId === gameStore.playerId);
 const penaltyTargets = computed(() => myPenaltyTurn.value ? others.value.filter(p => p.id === state.value?.pendingPenaltyTurn?.receiverId) : []);
 const penaltyTargeting = computed(() => state.value?.phase === 'PENALTY_DISTRIBUTION' && selectedCard.value !== null && penaltyTargets.value.length > 0);
@@ -407,6 +427,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
               :player="p" :is-me="false"
               :phase="state.phase"
               :is-turn="turnPlayer?.id === p.id"
+              :recommended="isRecommendedTarget(p.id)"
               :targetable="(!!dragging || (penaltyTargeting && penaltyTargets.some(target => target.id === p.id))) && !p.hasExited"
               @click="handleSeatClick(p.id)" @card-click="handleCardClick"
             />
@@ -497,7 +518,7 @@ watch(() => gameStore.penaltySplash, show => { if (show) playSound('penalty'); }
           </div>
           <PlayerSeat v-if="me" :player="me" :is-me="true" :is-turn="isMyTurn"
             :phase="state.phase" :underlaid-cards="state.underlaidCards !== false" :selected-card-id="selectedCard?.id"
-            :targetable="!!dragging" @drag-start="beginDrag($event, 'pile')"
+            :targetable="!!dragging" :recommended="isRecommendedTarget(gameStore.playerId)" @drag-start="beginDrag($event, 'pile')"
             @card-click="handleCardClick" />
         </section>
 
