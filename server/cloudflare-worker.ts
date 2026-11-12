@@ -4,7 +4,8 @@ import { applyBotMove, nextBotMove } from './botStrategy';
 import { handleTelegram } from './telegram';
 import { LobbyDirectory } from './lobbyDirectory';
 import { createDrawReveal } from './drawReveal';
-import type { Card, CardDrawReveal, GameState } from '../shared/types';
+import { visibleState } from './visibility';
+import type { CardDrawReveal, GameState } from '../shared/types';
 
 interface Env {
   ROOMS: DurableObjectNamespace<PidorRoom>;
@@ -19,24 +20,6 @@ type GameSnapshot = ReturnType<PidorGame['snapshot']>;
 
 function emit(socket: WebSocket, type: string, data: unknown) {
   try { socket.send(JSON.stringify({ type, data })); } catch { /* client disconnected */ }
-}
-function mask(id: string): Card { return { id: 'masked-' + id, rank: '6', suit: 'clubs' }; }
-function visibleState(state: GameState, playerId: string): GameState {
-  const copy: GameState = structuredClone(state);
-  copy.deck = state.deck.map((_, i) => mask('deck-' + i));
-  copy.players = copy.players.map(p => {
-    const original = state.players.find(x => x.id === p.id)!;
-    if (p.id !== playerId) p.hand = original.hand.map((_, i) => mask('hand-' + i));
-    // Only the top card of the dealing pile is public. All lower cards,
-    // including the human player's own, remain concealed until moved to hand.
-    p.stumps = original.stumps.map((card, i) =>
-      state.phase === 'DEALING' && i === original.stumps.length - 1 && i >= (state.underlaidCards === false ? 0 : 2)
-        ? card : mask('stumps-' + p.id + '-' + i));
-    return p;
-  });
-  // Cards drawn from the common deck are face-up public information:
-  // non-drawing players must see the real card while it is being placed.
-  return copy;
 }
 async function verifyTelegram(initData: string, botToken?: string): Promise<{ id: number; first_name?: string; username?: string } | null> {
   if (!botToken || initData.length > 8192) return null;
