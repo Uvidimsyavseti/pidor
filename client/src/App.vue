@@ -41,11 +41,24 @@ const selectedCard = ref<Card | null>(null);
 const copied = ref(false);
 const showRules = ref(false);
 const accuseOpen = ref(false);
-const dragging = ref<{kind:'deck'|'pile'|'active';pointerId:number;x:number;y:number;startX:number;startY:number;card:Card|null}|null>(null);
+const dragging = ref<{kind:'deck'|'pile'|'active';pointerId:number;x:number;y:number;startX:number;startY:number;card:Card|null;deckBefore:number}|null>(null);
 const deckRequestPending = ref(false);
 const initialDealLocked = ref(false);
 let initialDealTimer: ReturnType<typeof setTimeout> | null = null;
-const pendingDrawDrop = ref<string|null>(null);
+const pendingDrawDrop = ref<{ targetId: string; deckBefore: number } | null>(null);
+let pendingDropTimer: ReturnType<typeof setTimeout> | null = null;
+function cancelPendingDrop() {
+  pendingDrawDrop.value = null;
+  if (pendingDropTimer) { clearTimeout(pendingDropTimer); pendingDropTimer = null; }
+}
+function queuePendingDrop(targetId: string, deckBefore: number) {
+  cancelPendingDrop();
+  pendingDrawDrop.value = { targetId, deckBefore };
+  // A very late response remains draggable from the public active-card
+  // zone; it must not apply a stale drop to some unrelated future card.
+  pendingDropTimer = setTimeout(cancelPendingDrop, 3500);
+}
+onUnmounted(cancelPendingDrop);
 const dragTarget = ref<string|null>(null);
 const playMode = ref<'friends' | 'bot'>(new URLSearchParams(window.location.search).get('mode') === 'bot' ? 'bot' : 'friends');
 
@@ -214,25 +227,30 @@ watch(() => state.value?.initialDealEndsAt, deadline => {
 }, { immediate: true });
 onUnmounted(() => { if (initialDealTimer) clearTimeout(initialDealTimer); });
 
-watch(() => state.value?.deck.length, () => {
-  if (!deckRequestPending.value) return;
-  deckRequestPending.value = false;
+watch(() => state.value?.deck.length, count => {
+  if (deckRequestPending.value) deckRequestPending.value = false;
+  const pending = pendingDrawDrop.value;
+  if (pending && count !== undefined && count < pending.deckBefore && !state.value?.activeCard) {
+    // The spade six and final card go straight to the drawer's own pile.
+    cancelPendingDrop();
+  }
 });
 watch(() => state.value?.activeCard?.card.id, () => {
   const active = state.value?.activeCard;
   if (dragging.value?.kind === 'deck' && active?.ownerId === gameStore.playerId) {
     dragging.value = { ...dragging.value, card: active.card };
   }
-  if (pendingDrawDrop.value && active?.ownerId === gameStore.playerId && active.fromDeck) {
-    const to = pendingDrawDrop.value;
-    pendingDrawDrop.value = null;
-    gameStore.placeActiveCard(to);
+  const pending = pendingDrawDrop.value;
+  if (pending && active?.ownerId === gameStore.playerId && active.fromDeck &&
+      state.value?.deck.length === pending.deckBefore - 1) {
+    cancelPendingDrop();
+    gameStore.placeActiveCard(pending.targetId);
     playSound('place');
   }
 });
 watch(() => gameStore.gameState?.phase, phase => {
   if (phase !== 'DEALING') {
-    pendingDrawDrop.value = null;
+    cancelPendingDrop();
     deckRequestPending.value = false;
     dragging.value = null;
   }
@@ -248,7 +266,8 @@ function beginDrag(event: PointerEvent, kind: 'deck' | 'pile' | 'active') {
   const card = kind === 'active' ? state.value.activeCard!.card
     : kind === 'pile' ? me.value!.stumps[me.value!.stumps.length - 1]! : null;
   dragging.value = {kind,pointerId:event.pointerId,x:event.clientX,y:event.clientY,
-    startX:event.clientX,startY:event.clientY,card};
+    startX:event.clientX,startY:event.clientY,card,
+    deckBefore: state.value.deck.length};
   if (kind === 'deck') {
     deckRequestPending.value = true;
     gameStore.drawCardFromDeck();
@@ -274,7 +293,12 @@ function finishDrag(event: PointerEvent) {
   if (move.kind === 'pile') gameStore.moveTopTo(target);
   else if (move.kind === 'active') gameStore.placeActiveCard(target);
   else if (state.value?.activeCard?.ownerId === gameStore.playerId) gameStore.placeActiveCard(target);
-  else pendingDrawDrop.value = target; // pointer-up may beat the WebSocket response
+  else if (state.value?.deck.length === move.deckBefore) {
+    // The server has not replied yet; bind the drop to this specific draw.
+    queuePendingDrop(target, move.deckBefore);
+  }
+  // Otherwise the server already resolved the special card onto its
+  // owner's pile. No delayed target may apply to the NEXT draw.
   playSound('place');
   haptic();
 }
