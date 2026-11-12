@@ -122,7 +122,6 @@ function toggleSound() {
 }
 function showToast(text: string) {
   clearTimeout(toastTimeout);
-  clearInterval(clockTimer);
   alertText.value = text;
   toastTimeout = setTimeout(() => { alertText.value = ''; }, 2000);
 }
@@ -230,7 +229,9 @@ function movePointer(e: PointerEvent) {
   dragPoint.value = { x: e.clientX, y: e.clientY };
   if (!activeDragging.value && deckGestureHeld.value && active.value && isMyTurn.value && !animationLocked.value) activeDragging.value = true;
   if (activeDragging.value) {
-    dragTarget.value = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>('[data-seat-id]')?.dataset.seatId ?? null;
+    dragTarget.value = document.elementsFromPoint(e.clientX, e.clientY)
+      .map(el => (el as HTMLElement).closest<HTMLElement>('[data-seat-id]'))
+      .find((seat): seat is HTMLElement => Boolean(seat))?.dataset.seatId ?? null;
   }
 }
 function endPointer(e: PointerEvent) {
@@ -378,6 +379,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   ++dealRun;
   clearTimeout(toastTimeout);
+  clearInterval(clockTimer);
   clearTimeout(pendingTimeout);
   cleanupTelegram?.();
   window.removeEventListener('pointermove', movePointer);
