@@ -320,3 +320,20 @@ img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
 @keyframes dealt-card-arrive {from {opacity:.65;transform:translate(-50%,-58%) scale(.94)}to {opacity:1;transform:translate(-50%,-50%) scale(1)}}
 @media (max-height:650px){.table__active--dealing:not(.table__active--drag),.table__active-anchor{top:69%;}}
 @media (prefers-reduced-motion:reduce){.table__active--dealing:not(.table__active--drag){animation:none;}}
+
+
+/* Dealing polish: avoid the black rotated slab beneath the deck. */
+.table__deck::before {background:transparent;box-shadow:none;transform:none;}
+.table__deck .playing-card {filter:drop-shadow(0 7px 12px #0005);}
+.table__active--dealing {cursor:grab;touch-action:none;}
+.table__active--dealing:not(.table__active--drag) .playing-card {
+  filter:drop-shadow(0 0 9px #e7c68277) drop-shadow(0 11px 12px #0007);
+  transition:filter .18s ease,transform .18s ease;
+}
+.table__active--dealing:not(.table__active--drag):active .playing-card {
+  filter:drop-shadow(0 0 16px #f4d49bbb) drop-shadow(0 17px 15px #0009);
+}
+.table__active--drag .playing-card {filter:drop-shadow(0 0 17px #f2d08fa8) drop-shadow(0 15px 15px #0008);}
+.table__seat--target .seat__cards {filter:drop-shadow(0 0 14px #f6d18ba0);}
+.table-vfx i {animation-duration:.49s;}
+@media(prefers-reduced-motion:reduce){.table__active--dealing .playing-card{transition:none;}}
