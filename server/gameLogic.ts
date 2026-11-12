@@ -1,4 +1,5 @@
 import type { Card, Suit, Rank, GameState } from '../shared/types.js';
+import { INITIAL_DEAL_LEAD_MS, initialDealDuration, initialCardCount } from '../shared/initialDeal.js';
 
 export const RANKS: Rank[] = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -85,10 +86,18 @@ export class PidorGame {
     this.state.deck = createDeck();
     this.state.lastDrawEvent = undefined;
     this.lockedDrawCards = [];
+    // Deal clockwise: one card per player per round. The LAST round is
+    // visible; preceding rounds (only in underlaid mode) stay face-down.
     for (const player of this.state.players) {
-      player.stumps = underlaidCards ? [this.state.deck.pop()!, this.state.deck.pop()!, this.state.deck.pop()!] : [];
+      player.stumps = [];
       player.hand = [];
     }
+    for (let round = 0; round < initialCardCount(underlaidCards); round++) {
+      for (const player of this.state.players) player.stumps.push(this.state.deck.pop()!);
+    }
+    this.state.initialDealAt = Date.now() + INITIAL_DEAL_LEAD_MS;
+    this.state.initialDealEndsAt = this.state.initialDealAt +
+      initialDealDuration(this.state.players.length, underlaidCards);
     this.state.trumpSuit = null;
     this.previousDeckSuit = null;
     this.state.phase = 'DEALING'; 
@@ -108,7 +117,7 @@ export class PidorGame {
     const p = this.state.players.find(p => p.id === playerId);
     const top = p?.stumps.at(-1);
     return this.state.phase === 'DEALING' && !!top &&
-      p!.stumps.length > (this.state.underlaidCards === false ? 0 : 3) && !this.lockedDrawCards.includes(top.id);
+      p!.stumps.length > (this.state.underlaidCards === false ? 1 : 3) && !this.lockedDrawCards.includes(top.id);
   }
 
   private getPlayerIdx(id: string) { return this.state.players.findIndex(p => p.id === id); }
@@ -275,7 +284,7 @@ export class PidorGame {
     if (idx !== this.state.turnIndex) return false;
 
     const p = this.state.players[idx];
-    if (p.stumps.length <= (this.state.underlaidCards === false ? 0 : 3)) return false; // Never lift an originally dealt card
+    if (p.stumps.length <= (this.state.underlaidCards === false ? 1 : 3)) return false; // Never lift an originally dealt card
     
     const top = p.stumps[p.stumps.length - 1];
     if (top.id !== cardId || this.lockedDrawCards.includes(cardId)) return false;
@@ -337,7 +346,7 @@ export class PidorGame {
 
   private findOtherBeatTarget(actorIdx: number): number {
     const p = this.state.players[actorIdx];
-    if (p.stumps.length <= (this.state.underlaidCards === false ? 0 : 3)) return -1;
+    if (p.stumps.length <= (this.state.underlaidCards === false ? 1 : 3)) return -1;
     const top = p.stumps[p.stumps.length - 1];
     for (let i = 1; i < this.state.players.length; i++) {
       const idx = (actorIdx + i) % this.state.players.length;
