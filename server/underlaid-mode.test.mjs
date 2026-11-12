@@ -39,12 +39,13 @@ const players=[{id:'p1',name:'P1'},{id:'p2',name:'P2'}];
   const game=new PidorGame(players);
   game.start(false);
   assert.equal(game.state.underlaidCards,false);
-  assert.equal(game.state.deck.length,36);
-  assert.ok(game.state.players.every(p=>p.stumps.length===0));
+  assert.equal(game.state.deck.length,34,'One initial open card is dealt to each player');
+  assert.ok(game.state.players.every(p=>p.stumps.length===1));
+  assert.equal(game.canMoveTopCard('p1'),false,'The lone open starter cannot be moved');
   assert.equal(game.drawTo('p1','p1'),true);
-  assert.equal(game.state.players[0].stumps.length,1);
+  assert.equal(game.state.players[0].stumps.length,2);
   assert.equal(game.drawTo('p2','p2'),true);
-  assert.equal(game.state.players[1].stumps.length,1);
+  assert.equal(game.state.players[1].stumps.length,2);
   cardsCount(game);
   for(let guard=0;guard<200&&game.state.phase==='DEALING';guard++){
     const actor=game.state.players[game.state.turnIndex];
