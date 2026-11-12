@@ -77,7 +77,8 @@ export class PidorGame {
     };
   }
 
-  start() {
+  start(underlaidCards: boolean = this.state.underlaidCards !== false) {
+    this.state.underlaidCards = underlaidCards;
     this.violations = [];
     this.lastAccusationAt = {};
     this.reviewDeadlineAt = 0;
@@ -85,7 +86,7 @@ export class PidorGame {
     this.state.lastDrawEvent = undefined;
     this.lockedDrawCards = [];
     for (const player of this.state.players) {
-      player.stumps = [this.state.deck.pop()!, this.state.deck.pop()!, this.state.deck.pop()!];
+      player.stumps = underlaidCards ? [this.state.deck.pop()!, this.state.deck.pop()!, this.state.deck.pop()!] : [];
       player.hand = [];
     }
     this.state.trumpSuit = null;
@@ -95,7 +96,8 @@ export class PidorGame {
     console.log("[GAME] Started. First turn:", this.state.players[0].name);
   }
 
-  canBeat(card: Card, target: Card): boolean {
+  canBeat(card: Card, target: Card | undefined): boolean {
+    if (!target) return false;
     // During dealing suits do not matter: next rank only.
     // Six wraps onto ace, except the spade six.
     if (card.rank === '6') return card.suit !== 'spades' && target.rank === 'A';
@@ -106,7 +108,7 @@ export class PidorGame {
     const p = this.state.players.find(p => p.id === playerId);
     const top = p?.stumps.at(-1);
     return this.state.phase === 'DEALING' && !!top &&
-      p!.stumps.length > 3 && !this.lockedDrawCards.includes(top.id);
+      p!.stumps.length > (this.state.underlaidCards === false ? 0 : 3) && !this.lockedDrawCards.includes(top.id);
   }
 
   private getPlayerIdx(id: string) { return this.state.players.findIndex(p => p.id === id); }
@@ -273,7 +275,7 @@ export class PidorGame {
     if (idx !== this.state.turnIndex) return false;
 
     const p = this.state.players[idx];
-    if (p.stumps.length <= 3) return false; // Preserve all three original dealt cards
+    if (p.stumps.length <= (this.state.underlaidCards === false ? 0 : 3)) return false; // Never lift an originally dealt card
     
     const top = p.stumps[p.stumps.length - 1];
     if (top.id !== cardId || this.lockedDrawCards.includes(cardId)) return false;
@@ -311,7 +313,7 @@ export class PidorGame {
     if (actorIdx !== this.state.turnIndex && !opportunistic) return false;
     const isSelf = actorIdx === targetIdx;
     const top = this.state.players[targetIdx].stumps.at(-1)!;
-    const legal = this.canBeat(card, top);
+    const legal = top ? this.canBeat(card, top) : isSelf;
     let first = -1;
     for (let i = 1; i < this.state.players.length; i++) {
       const idx = (actorIdx + i) % this.state.players.length;
@@ -335,7 +337,7 @@ export class PidorGame {
 
   private findOtherBeatTarget(actorIdx: number): number {
     const p = this.state.players[actorIdx];
-    if (p.stumps.length <= 3) return -1;
+    if (p.stumps.length <= (this.state.underlaidCards === false ? 0 : 3)) return -1;
     const top = p.stumps[p.stumps.length - 1];
     for (let i = 1; i < this.state.players.length; i++) {
       const idx = (actorIdx + i) % this.state.players.length;
@@ -378,7 +380,7 @@ export class PidorGame {
   private transitionToPenaltyDistribution() {
     this.lockedDrawCards = [];
     this.state.phase = 'PENALTY_DISTRIBUTION';
-    for (const p of this.state.players) p.hand = p.stumps.splice(2);
+    for (const p of this.state.players) p.hand = p.stumps.splice(this.state.underlaidCards === false ? 0 : 2);
     this.penaltyDebts = {};
     // A player must retain at least one card. Distribute the available
     // penalty cards without creating debts that can never be paid.
