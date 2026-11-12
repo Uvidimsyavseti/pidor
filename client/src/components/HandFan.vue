@@ -20,7 +20,7 @@ let resize: ResizeObserver | undefined;
 const width = ref(360);
 
 const spread = computed(() => {
-  return Math.max(22, Math.min(62, (width.value - 84) / Math.max(props.cards.length - 1, 1)));
+  return Math.max(5, Math.min(62, (width.value - 84) / Math.max(props.cards.length - 1, 1)));
 });
 const fanWidth = computed(() => props.cards.length ? 84 + (props.cards.length - 1) * spread.value : 0);
 const selected = computed(() => props.cards[index.value] ?? null);
