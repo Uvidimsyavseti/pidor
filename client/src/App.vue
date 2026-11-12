@@ -4,7 +4,7 @@ import { useGameStore } from './stores/game';
 import CardComponent from './components/CardComponent.vue';
 import PlayerSeat from './components/PlayerSeat.vue';
 import HandFan from './components/HandFan.vue';
-import { mountTelegramViewport } from './telegramViewport';
+import { mountTelegramViewport, requestTelegramFullscreen } from './telegramViewport';
 import type { Card, Suit } from '@shared/types';
 
 type Flight = { card: Card; hidden: boolean };
@@ -131,6 +131,7 @@ function joinRoom(id: string, opts: { mode?: 'friends' | 'bot'; botCount?: numbe
   if (!name.value.trim()) { showToast('Введи имя'); return; }
   if (!/^[a-zA-Z0-9_-]{1,48}$/.test(id)) { showToast('Неверный код комнаты'); return; }
   room.value = id;
+  requestTelegramFullscreen();
   game.joinRoom(name.value.trim(), id, opts);
   joined.value = true;
   localStorage.setItem('pidor:name', name.value.trim());
@@ -378,7 +379,9 @@ onMounted(() => {
   game.connect();
   clockTimer = setInterval(() => { clock.value = Date.now(); }, 250);
   name.value = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || localStorage.getItem('pidor:name') || '';
-  const requestRoom = new URLSearchParams(location.search).get('room');
+  const query = new URLSearchParams(location.search);
+  if (query.get('mode') === 'bot') uiTab.value = 'bots';
+  const requestRoom = query.get('room');
   if (requestRoom && /^[A-Za-z0-9_-]{1,48}$/.test(requestRoom)) {
     room.value = requestRoom;
     uiTab.value = 'code';
