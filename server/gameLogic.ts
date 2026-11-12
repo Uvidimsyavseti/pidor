@@ -106,7 +106,7 @@ export class PidorGame {
     const p = this.state.players.find(p => p.id === playerId);
     const top = p?.stumps.at(-1);
     return this.state.phase === 'DEALING' && !!top &&
-      p!.stumps.length > 1 && !this.lockedDrawCards.includes(top.id);
+      p!.stumps.length > 3 && !this.lockedDrawCards.includes(top.id);
   }
 
   private getPlayerIdx(id: string) { return this.state.players.findIndex(p => p.id === id); }
@@ -273,7 +273,7 @@ export class PidorGame {
     if (idx !== this.state.turnIndex) return false;
 
     const p = this.state.players[idx];
-    if (p.stumps.length <= 1) return false; // Retain one anchor card
+    if (p.stumps.length <= 3) return false; // Preserve all three original dealt cards
     
     const top = p.stumps[p.stumps.length - 1];
     if (top.id !== cardId || this.lockedDrawCards.includes(cardId)) return false;
@@ -335,7 +335,7 @@ export class PidorGame {
 
   private findOtherBeatTarget(actorIdx: number): number {
     const p = this.state.players[actorIdx];
-    if (p.stumps.length <= 1) return -1;
+    if (p.stumps.length <= 3) return -1;
     const top = p.stumps[p.stumps.length - 1];
     for (let i = 1; i < this.state.players.length; i++) {
       const idx = (actorIdx + i) % this.state.players.length;
