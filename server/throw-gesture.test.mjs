@@ -25,8 +25,10 @@ const p=(x,y,t)=>({x,y,t});
   assert.ok(res.speed>=FLICK_SPEED_PX_MS);
 }
 {
-  const points=[p(200,245,0),p(252,207,25),p(300,191,50)];
-  assert.equal(resolveCardGesture(points,seats).targetId,'right','Rightward throw chooses a seat on its real trajectory');
+  const points=[p(200,245,0),p(241,220,24),p(263,205,42)];
+  const result=resolveCardGesture(points,seats);
+  assert.equal(result.targetId,'right','Rightward throw chooses a seat on its real trajectory');
+  assert.equal(result.kind,'flick','Rightward target is hit by projected velocity, not a direct drop');
 }
 {
   const points=[p(200,300,0),p(170,260,150),p(135,230,350)];
@@ -67,5 +69,22 @@ const p=(x,y,t)=>({x,y,t});
 {
   const vel=gestureVelocity([p(200,340,0),p(200,335,1000),p(200,320,1010),p(200,300,1020)]);
   assert.ok(vel.speed>FLICK_SPEED_PX_MS,'Old motion is ignored; use last 125ms of finger movement');
+}
+// Guard the physical interaction contract against regressions during redesign.
+{
+  const {readFileSync}=await import('node:fs');
+  const app=readFileSync(new URL('../client/src/App.vue',import.meta.url),'utf8');
+  const arena=readFileSync(new URL('../client/src/game-arena.css',import.meta.url),'utf8');
+  assert.match(app,/setPointerCapture\(event\.pointerId\)/,'iOS touch maintains the gesture until release');
+  assert.match(app,/:disabled="!canDraw && dragging\?\.kind !== 'deck'"/,
+    'The tapped deck button cannot disable itself mid-drag');
+  assert.match(app,/resolveCardGesture\(samples,seats,exclude\)/,
+    'Gesture resolver is used on pointer release');
+  assert.match(app,/queuePendingDrop\(target,move\.deckBefore\)/,
+    'A fast throw before WebSocket acknowledgement is correctly queued');
+  assert.match(arena,/@keyframes seat-card-flight/,
+    'Thrown card animates from finger to the selected player');
+  assert.match(arena,/gesture-card--face-up/,
+    'Card reveals its authentic face on the moving object');
 }
 console.log('PASS: card throw gesture — slow release, fast flick, trajectory, clockwise-independent targeting, misses, self and duplicate prevention');
