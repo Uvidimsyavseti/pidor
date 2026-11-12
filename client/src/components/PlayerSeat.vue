@@ -8,9 +8,10 @@ const props = withDefaults(defineProps<{
   isMe?: boolean;
   isTurn?: boolean;
   phase: string;
+  underlaidCards?: boolean;
   selectedCardId?: string | null;
   hiddenCardIds?: ReadonlySet<string>;
-}>(), { isMe: false, isTurn: false, selectedCardId: null });
+}>(), { isMe: false, isTurn: false, selectedCardId: null, underlaidCards: true });
 const emit = defineEmits<{
   cardClick: [event: { card: Card; ownerId: string }];
   click: [];
@@ -18,7 +19,8 @@ const emit = defineEmits<{
 const topCard = computed(() => props.player.stumps[props.player.stumps.length - 1]);
 const visibleStumps = computed(() => props.player.stumps.filter(c => !props.hiddenCardIds?.has(c.id)));
 const handSize = computed(() => props.player.hand.length);
-const closedStartCount = computed(() => props.player.stumps.length >= 3 ? 2 : 0);
+const closedStartCount = computed(() => props.underlaidCards ? 2 : 0);
+const isDealingLike = computed(() => props.phase === 'DEALING' || props.phase === 'PENALTY_REVIEW');
 function touchTop(e: Event) {
   e.stopPropagation();
   if (topCard.value && !props.hiddenCardIds?.has(topCard.value.id)) emit('cardClick', { card: topCard.value, ownerId: props.player.id });
@@ -38,14 +40,14 @@ function touchTop(e: Event) {
       <span v-if="player.penalties" class="seat__penalties" :aria-label="'Похуёвых: ' + player.penalties">☠ {{ player.penalties }}</span>
     </div>
     <div class="seat__cards" @click.stop="touchTop">
-      <template v-if="phase === 'DEALING'">
+      <template v-if="isDealingLike">
         <div
           v-for="(card, index) in visibleStumps"
           :key="card.id"
           class="seat__pile-card"
           :style="{ transform: 'translate(' + index * 1.2 + 'px,' + (-index * 1.2) + 'px)', zIndex: index }"
         >
-          <CardComponent :card="card" :hidden="index < closedStartCount && index < 2" small />
+          <CardComponent :card="card" :hidden="card.id.startsWith('masked-') || index < closedStartCount" small />
         </div>
       </template>
       <template v-else>
