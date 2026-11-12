@@ -378,6 +378,8 @@ export class PidorRoom extends DurableObject<Env> {
     const game = this.game;
     if (type === 'accusePlayer' && typeof data.accusedId === 'string') {
       const verdict = game.accuse(id, data.accusedId);
+      // Only the outcome is logged (no player names, IDs or card contents).
+      console.info('[PIDOR-ACCUSATION]', verdict ? (verdict.correct ? 'confirmed' : 'false-call') : 'rejected', game.state.phase);
       if (verdict) this.broadcastVerdict(id, verdict);
       else emit(socket, 'actionError', 'Обвинение сейчас недоступно');
     }
