@@ -617,7 +617,7 @@ async function callTelegram(env, method, body) {
 }
 __name(callTelegram, "callTelegram");
 function miniAppLink(origin, mode) {
-  return origin + (mode === "bot" ? "/api/app?mode=bot" : "/api/app?mode=friends");
+  return origin + (mode === "bot" ? "/api/app?mode=bot&ui=20261112" : "/api/app?mode=friends&ui=20261112");
 }
 __name(miniAppLink, "miniAppLink");
 async function replyToMessage(env, update, origin) {
@@ -627,7 +627,7 @@ async function replyToMessage(env, update, origin) {
   const command = raw.split(/\s+/)[0].split("@")[0].toLowerCase();
   if (!["/start", "/play", "/game", "/help"].includes(command)) return;
   if (command === "/start") {
-    try { await callTelegram(env, "setChatMenuButton", { menu_button: { type: "web_app", text: "🎮 Играть", web_app: { url: origin + "/api/app" } } }); }
+    try { await callTelegram(env, "setChatMenuButton", { menu_button: { type: "web_app", text: "🎮 Играть", web_app: { url: origin + "/api/app?ui=20261112" } } }); }
     catch { /* Optional menu migration; /start links still work. */ }
   }
 
@@ -653,7 +653,7 @@ async function activateBot(env, origin) {
       drop_pending_updates: false
     });
     const menu = await callTelegram(env, "setChatMenuButton", {
-      menu_button: { type: "web_app", text: "\u{1F3AE} \u0418\u0433\u0440\u0430\u0442\u044C", web_app: { url: origin + "/api/app" } }
+      menu_button: { type: "web_app", text: "\u{1F3AE} \u0418\u0433\u0440\u0430\u0442\u044C", web_app: { url: origin + "/api/app?ui=20261112" } }
     });
     await callTelegram(env, "setMyCommands", {
       commands: [
@@ -1339,7 +1339,13 @@ var cloudflare_worker_default = {
     const url = new URL(request.url);
     // Single canonical Mini App entry point: legacy / must never show the old UI.
     if (url.pathname === "/" || url.pathname === "/index.html") {
-      return Response.redirect(url.origin + "/api/app" + url.search, 302);
+      // Render the same Mini App directly. Redirects can keep an older
+      // Telegram WebView document alive while navigating between screens.
+      return new Response(RELEASE_HTML, {headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store, max-age=0, must-revalidate",
+        "x-pidor-ui": "telegram-mini-app"
+      }});
     }
     if (url.pathname === "/api/app" || url.pathname === "/api/app/") return new Response(RELEASE_HTML,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-pidor-release":"p3-p4"}});
     if (url.pathname === "/api/app.js") return new Response(RELEASE_JS,{headers:{"content-type":"application/javascript; charset=utf-8","cache-control":"no-store"}});
