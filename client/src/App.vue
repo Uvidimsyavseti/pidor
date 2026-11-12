@@ -486,6 +486,7 @@ onBeforeUnmount(() => {
           <PlayerSeat
             :player="me"
             :phase="state.phase"
+            :underlaid-cards="state.underlaidCards !== false"
             :is-me="true"
             :is-turn="isMyTurn"
             :hidden-card-ids="hiddenIds"
